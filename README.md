@@ -1,1 +1,237 @@
-# ManaMurah MCP Server\n\nA Model Context Protocol (MCP) server for Malaysian price data from KPDN Pricecatcher. This server enables direct integration with Claude Desktop and other MCP-compatible AI tools for querying Malaysian consumer goods prices.\n\n## Features\n\n🇲🇾 **Official Malaysian Price Data** - KPDN Pricecatcher data via OpenDOSM  \n🤖 **AI-Optimized** - Natural language queries with intelligent parsing  \n⚡ **Serverless** - Deployed on Cloudflare Workers for global performance  \n🔒 **Rate Limited** - Built-in abuse protection and fair usage  \n📊 **Rich Analytics** - Price comparisons, trends, and market insights  \n🎯 **Claude Desktop Ready** - One-click setup for Claude Desktop integration  \n\n## Quick Start\n\n### Deploy to Cloudflare Workers\n\n```bash\n# Clone or create from template\nnpm create cloudflare@latest manamurah-mcp-server --template=cloudflare/ai/demos/remote-mcp-authless\n\n# Replace src/ contents with ManaMurah implementation\n# (Copy files from this directory)\n\n# Install dependencies\nnpm install\n\n# Deploy to Cloudflare Workers\nnpm run deploy\n```\n\n### Connect to Claude Desktop\n\n1. Get your deployed Workers URL (e.g., `https://manamurah-mcp-server.your-account.workers.dev`)\n2. Add to Claude Desktop MCP configuration:\n\n```json\n{\n  \"manamurah\": {\n    \"command\": \"node\",\n    \"args\": [\"/path/to/mcp-client.js\"],\n    \"env\": {\n      \"MCP_SERVER_URL\": \"https://manamurah-mcp-server.your-account.workers.dev/sse\"\n    }\n  }\n}\n```\n\n3. Restart Claude Desktop\n4. Start asking about Malaysian prices!\n\n## Available Tools\n\n### 🔍 get_malaysian_prices\nSearch for current prices with natural language queries.\n\n**Examples:**\n- \"rice prices in Kuala Lumpur\"\n- \"cheapest chicken in Penang hypermarkets\"\n- \"cooking oil under RM20 in Selangor\"\n\n### 📊 compare_prices\nCompare prices across different regions or retail chains.\n\n**Examples:**\n- Compare rice prices between KL and Penang\n- Find price differences across retail chains\n- Regional price analysis for specific items\n\n### 📈 analyze_price_trends\nAnalyze price trends and market patterns over time.\n\n**Examples:**\n- Price volatility analysis\n- Seasonal price patterns\n- Regional market trends\n\n### 💡 get_market_insights\nGet market intelligence and insights about price anomalies.\n\n**Examples:**\n- Recent price changes\n- Market anomaly detection\n- Regional price differences\n\n## Example Usage\n\n### Basic Price Search\n```\nUser: \"What are rice prices in Kuala Lumpur?\"\n\nMCP Response:\n📊 Summary: Rice prices in Kuala Lumpur range from RM15.20-RM25.80 per 5kg\n\n💡 Key Insights:\n• Hypermarkets offer 18% lower prices than convenience stores\n• Significant price variation exists across different retailers\n\n📈 Price Statistics:\n• Average: RM18.50\n• Range: RM15.20 - RM25.80\n• Price Variation: 32%\n\n[Detailed price listings follow...]\n```\n\n### Price Comparison\n```\nUser: \"Compare chicken prices between Penang and Johor\"\n\nMCP Response:\n📊 Summary: Penang has lower average chicken prices (RM8.20) compared to Johor (RM9.10)\n\n## Regional Comparison\n\n### 1. Penang\n• Average Price: RM8.20\n• Price Range: RM7.50 - RM9.80\n• Sample Size: 15 price points\n\n### 2. Johor\n• Average Price: RM9.10\n• Price Range: RM8.20 - RM11.50\n• Sample Size: 12 price points\n\n💡 Comparison Insights:\n• Most Affordable: Penang (RM8.20 average)\n• Potential Savings: RM0.90 (9.9%) by choosing Penang\n```\n\n## Development\n\n### Local Development\n\n```bash\n# Install dependencies\nnpm install\n\n# Start development server\nnpm run dev\n\n# Type checking\nnpm run type-check\n\n# Linting\nnpm run lint\n```\n\n### Project Structure\n\n```\nsrc/\n├── index.ts                 # Main MCP server implementation\n├── utils/\n│   ├── api-client.ts        # ManaMurah API client\n│   ├── query-parser.ts      # Natural language query parsing\n│   ├── response-formatter.ts # MCP response formatting\n│   └── rate-limiter.ts      # Rate limiting implementation\n└── types/\n    └── manamurah.ts         # TypeScript type definitions\n```\n\n### Configuration\n\nEnvironment variables in `wrangler.toml`:\n\n```toml\n[vars]\nMANAMURAH_API_BASE = \"https://api.manamurah.com\"\nRATE_LIMIT_ENABLED = \"true\"\nCACHE_TTL = \"300\"\nMAX_QUERIES_PER_MINUTE = \"10\"\nMAX_QUERIES_PER_HOUR = \"100\"\n```\n\n## Rate Limits\n\n- **Per Minute**: 10 requests\n- **Per Hour**: 100 requests\n- **Automatic Cleanup**: Old request data is cleaned up automatically\n\nRate limits help ensure fair usage and prevent abuse while allowing genuine research and analysis.\n\n## Features\n\n### Natural Language Processing\n- Intelligent extraction of items, locations, and price constraints\n- Support for Malaysian terms (e.g., \"beras\" for rice, \"ayam\" for chicken)\n- Price range detection (\"under RM20\", \"between RM10 and RM15\")\n- Location recognition for all Malaysian states and major cities\n\n### Rich Response Formatting\n- Markdown-formatted responses optimized for Claude Desktop\n- Statistical analysis with averages, ranges, and insights\n- Suggested follow-up questions for continued exploration\n- Data source attribution and freshness indicators\n\n### Error Handling\n- User-friendly error messages with helpful suggestions\n- Graceful degradation when data is unavailable\n- Query improvement recommendations\n- Comprehensive error logging for debugging\n\n## Data Source\n\n**Official Government Data**: KPDN Pricecatcher program via [OpenDOSM](https://open.dosm.gov.my)\n\n- Daily data updates (subject to government publication schedules)\n- Comprehensive coverage of Malaysian retail prices\n- Data includes hypermarkets, supermarkets, convenience stores, and grocery shops\n- Covers all Malaysian states and major urban centers\n\n## Support\n\n### Getting Help\n- **Documentation**: [api.manamurah.com/docs](https://api.manamurah.com/docs)\n- **AI Integration Guide**: [Complete guide for AI developers](../docs/ai-integration-guide.md)\n- **Issues**: [GitHub Issues](https://github.com/manamurah/api/issues)\n\n### Contact\n- **General Support**: support@manamurah.com\n- **AI Integration**: ai-support@manamurah.com\n- **Enterprise**: enterprise@manamurah.com\n\n## License\n\nMIT License - see LICENSE file for details.\n\n## Contributing\n\nContributions welcome! Please read our contributing guidelines and submit pull requests for any improvements.\n\n---\n\n**Built with ❤️ for the Malaysian data community**\n\nMaking Malaysian price data accessible to AI tools and researchers worldwide.
+# ManaMurah MCP Server
+
+A Model Context Protocol (MCP) server for Malaysian price data from KPDN Pricecatcher. This server enables direct integration with Claude Desktop and other MCP-compatible AI tools for querying Malaysian consumer goods prices.
+
+## Features
+
+🇲🇾 **Official Malaysian Price Data** - KPDN Pricecatcher data via OpenDOSM  
+🤖 **AI-Optimized** - Natural language queries with intelligent parsing  
+⚡ **Serverless** - Deployed on Cloudflare Workers for global performance  
+🔒 **Rate Limited** - Built-in abuse protection and fair usage  
+📊 **Rich Analytics** - Price comparisons, trends, and market insights  
+🎯 **Claude Desktop Ready** - One-click setup for Claude Desktop integration  
+
+## Quick Start
+
+### Deploy to Cloudflare Workers
+
+```bash
+# Clone or create from template
+npm create cloudflare@latest manamurah-mcp-server --template=cloudflare/ai/demos/remote-mcp-authless
+
+# Replace src/ contents with ManaMurah implementation
+# (Copy files from this directory)
+
+# Install dependencies
+npm install
+
+# Deploy to Cloudflare Workers
+npm run deploy
+```
+
+### Connect to Claude Desktop
+
+1. Get your deployed Workers URL (e.g., `https://manamurah-mcp-server.your-account.workers.dev`)
+2. Add to Claude Desktop MCP configuration:
+
+```json
+{
+  "manamurah": {
+    "command": "node",
+    "args": ["/path/to/mcp-client.js"],
+    "env": {
+      "MCP_SERVER_URL": "https://manamurah-mcp-server.your-account.workers.dev/sse"
+    }
+  }
+}
+```
+
+3. Restart Claude Desktop
+4. Start asking about Malaysian prices!
+
+## Available Tools
+
+### 🔍 get_malaysian_prices
+Search for current prices with natural language queries.
+
+**Examples:**
+- "rice prices in Kuala Lumpur"
+- "cheapest chicken in Penang hypermarkets"
+- "cooking oil under RM20 in Selangor"
+
+### 📊 compare_prices
+Compare prices across different regions or retail chains.
+
+**Examples:**
+- Compare rice prices between KL and Penang
+- Find price differences across retail chains
+- Regional price analysis for specific items
+
+### 📈 analyze_price_trends
+Analyze price trends and market patterns over time.
+
+**Examples:**
+- Price volatility analysis
+- Seasonal price patterns
+- Regional market trends
+
+### 💡 get_market_insights
+Get market intelligence and insights about price anomalies.
+
+**Examples:**
+- Recent price changes
+- Market anomaly detection
+- Regional price differences
+
+## Example Usage
+
+### Basic Price Search
+```
+User: "What are rice prices in Kuala Lumpur?"
+
+MCP Response:
+📊 Summary: Rice prices in Kuala Lumpur range from RM15.20-RM25.80 per 5kg
+
+💡 Key Insights:
+• Hypermarkets offer 18% lower prices than convenience stores
+• Significant price variation exists across different retailers
+
+📈 Price Statistics:
+• Average: RM18.50
+• Range: RM15.20 - RM25.80
+• Price Variation: 32%
+
+[Detailed price listings follow...]
+```
+
+### Price Comparison
+```
+User: "Compare chicken prices between Penang and Johor"
+
+MCP Response:
+📊 Summary: Penang has lower average chicken prices (RM8.20) compared to Johor (RM9.10)
+
+## Regional Comparison
+
+### 1. Penang
+• Average Price: RM8.20
+• Price Range: RM7.50 - RM9.80
+• Sample Size: 15 price points
+
+### 2. Johor
+• Average Price: RM9.10
+• Price Range: RM8.20 - RM11.50
+• Sample Size: 12 price points
+
+💡 Comparison Insights:
+• Most Affordable: Penang (RM8.20 average)
+• Potential Savings: RM0.90 (9.9%) by choosing Penang
+```
+
+## Development
+
+### Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+```
+
+### Project Structure
+
+```
+src/
+├── index.ts                 # Main MCP server implementation
+├── utils/
+│   ├── api-client.ts        # ManaMurah API client
+│   ├── query-parser.ts      # Natural language query parsing
+│   ├── response-formatter.ts # MCP response formatting
+│   └── rate-limiter.ts      # Rate limiting implementation
+└── types/
+    └── manamurah.ts         # TypeScript type definitions
+```
+
+### Configuration
+
+Environment variables in `wrangler.toml`:
+
+```toml
+[vars]
+MANAMURAH_API_BASE = "https://api.manamurah.com"
+RATE_LIMIT_ENABLED = "true"
+CACHE_TTL = "300"
+MAX_QUERIES_PER_MINUTE = "10"
+MAX_QUERIES_PER_HOUR = "100"
+```
+
+## Rate Limits
+
+- **Per Minute**: 10 requests
+- **Per Hour**: 100 requests
+- **Automatic Cleanup**: Old request data is cleaned up automatically
+
+Rate limits help ensure fair usage and prevent abuse while allowing genuine research and analysis.
+
+## Features
+
+### Natural Language Processing
+- Intelligent extraction of items, locations, and price constraints
+- Support for Malaysian terms (e.g., "beras" for rice, "ayam" for chicken)
+- Price range detection ("under RM20", "between RM10 and RM15")
+- Location recognition for all Malaysian states and major cities
+
+### Rich Response Formatting
+- Markdown-formatted responses optimized for Claude Desktop
+- Statistical analysis with averages, ranges, and insights
+- Suggested follow-up questions for continued exploration
+- Data source attribution and freshness indicators
+
+### Error Handling
+- User-friendly error messages with helpful suggestions
+- Graceful degradation when data is unavailable
+- Query improvement recommendations
+- Comprehensive error logging for debugging
+
+## Data Source
+
+**Official Government Data**: KPDN Pricecatcher program via [OpenDOSM](https://open.dosm.gov.my)
+
+- Daily data updates (subject to government publication schedules)
+- Comprehensive coverage of Malaysian retail prices
+- Data includes hypermarkets, supermarkets, convenience stores, and grocery shops
+- Covers all Malaysian states and major urban centers
+
+## Support
+
+### Getting Help
+- **Documentation**: [api.manamurah.com/docs](https://api.manamurah.com/docs)
+- **AI Integration Guide**: [Complete guide for AI developers](../docs/ai-integration-guide.md)
+- **Issues**: [GitHub Issues](https://github.com/manamurah/api/issues)
+
+### Contact
+- **General Support**: support@manamurah.com
+- **AI Integration**: ai-support@manamurah.com
+- **Enterprise**: enterprise@manamurah.com
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions welcome! Please read our contributing guidelines and submit pull requests for any improvements.
+
+---
+
+**Built with ❤️ for the Malaysian data community**
+
+Making Malaysian price data accessible to AI tools and researchers worldwide.
