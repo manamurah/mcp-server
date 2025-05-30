@@ -11,6 +11,13 @@ A Model Context Protocol (MCP) server for Malaysian price data from KPDN Priceca
 📊 **Rich Analytics** - Price comparisons, trends, and market insights  
 🎯 **Claude Desktop Ready** - One-click setup for Claude Desktop integration  
 
+## Live Demo
+
+The MCP server is deployed and accessible at:
+- **Production**: https://mcp.manamurah.com
+- **API Endpoint**: https://mcp.manamurah.com/mcp
+- **Status**: https://mcp.manamurah.com/ (returns server info)
+
 ## Quick Start
 
 ### Deploy to Cloudflare Workers
@@ -31,7 +38,7 @@ npm run deploy
 
 ### Connect to Claude Desktop
 
-1. Get your deployed Workers URL (e.g., `https://manamurah-mcp-server.your-account.workers.dev`)
+1. Get your deployed Workers URL (e.g., `https://mcp.manamurah.com`)
 2. Add to Claude Desktop MCP configuration:
 
 ```json
@@ -40,7 +47,7 @@ npm run deploy
     "command": "node",
     "args": ["/path/to/mcp-client.js"],
     "env": {
-      "MCP_SERVER_URL": "https://manamurah-mcp-server.your-account.workers.dev/sse"
+      "MCP_SERVER_URL": "https://mcp.manamurah.com/sse"
     }
   }
 }

@@ -1,6 +1,6 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "manamurah-mcp-server"
-main = "src/index-simple.ts"
+main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
@@ -24,10 +24,10 @@ vars = { ENVIRONMENT = "staging" }
 name = "manamurah-mcp-server-dev"
 vars = { ENVIRONMENT = "development" }
 
-# Custom domains (optional)
-# [[env.production.routes]]
-# pattern = "mcp.manamurah.com/*"
-# custom_domain = true
+# Custom domains
+[[routes]]
+pattern = "mcp.manamurah.com"
+custom_domain = true
 
 # KV namespace for rate limiting (optional)
 # [[kv_namespaces]]
