@@ -1,1 +1,225 @@
-/**\n * TypeScript type definitions for ManaMurah Data API\n */\n\n// Price data item structure\nexport interface PriceItem {\n  item: string;\n  item_code?: string;\n  item_category?: string;\n  item_group?: string;\n  price: number;\n  premise: string;\n  premise_code?: string;\n  premise_category?: string;\n  chain?: string;\n  retailer_type?: string;\n  address?: string;\n  state?: string;\n  district?: string;\n  date: string;\n  coordinates?: {\n    lat: number;\n    lon: number;\n  };\n}\n\n// API response structure\nexport interface ApiResponse {\n  data: PriceItem[];\n  ai_context?: {\n    summary: string;\n    key_insights: string[];\n    data_confidence: number;\n    last_updated: string;\n    regional_context: string;\n    market_conditions: string;\n    anomalies: any[];\n    price_statistics?: {\n      average: string;\n      min: string;\n      max: string;\n      range_percentage: string;\n    };\n  };\n  narrative?: {\n    brief: string;\n    detailed: string;\n    context: string;\n  };\n  suggested_questions?: string[];\n  meta: {\n    total: number;\n    data_source: string;\n    api_version?: string;\n    query_type?: string;\n    original_query?: string;\n    cache_hit?: boolean;\n    request_id?: string;\n    response_time?: string;\n  };\n}\n\n// Price search parameters\nexport interface PriceSearchParams {\n  query?: string;\n  item?: string;\n  location?: string;\n  state?: string;\n  district?: string;\n  retailer_type?: 'hypermarket' | 'supermarket' | 'convenience' | 'grocery';\n  chain?: string;\n  max_price?: number;\n  min_price?: number;\n  limit?: number;\n  offset?: number;\n}\n\n// Price comparison parameters\nexport interface PriceComparisonParams {\n  item: string;\n  regions?: string[];\n  comparison_type?: 'states' | 'retailers' | 'districts';\n  include_statistics?: boolean;\n}\n\n// Trend analysis parameters\nexport interface TrendAnalysisParams {\n  items: string[];\n  analysis_type: 'trend' | 'volatility' | 'seasonal' | 'regional';\n  time_period?: 'last_week' | 'last_month' | 'last_quarter';\n  location?: string;\n}\n\n// Market insights parameters\nexport interface MarketInsightsParams {\n  focus?: 'overview' | 'anomalies' | 'price_changes' | 'regional_differences';\n  categories?: string[];\n  timeframe?: 'today' | 'this_week' | 'this_month';\n}\n\n// Statistical data structure\nexport interface PriceStatistics {\n  average: number;\n  min: number;\n  max: number;\n  count: number;\n  range?: number;\n}\n\n// Comparison result structure\nexport interface ComparisonResult {\n  item: string;\n  comparison_type: string;\n  comparisons: {\n    region: string;\n    data: PriceItem[];\n    statistics: PriceStatistics;\n  }[];\n  summary: string;\n}\n\n// Trend analysis result structure\nexport interface TrendResult {\n  items: string[];\n  analysis_type: string;\n  time_period: string;\n  current_data: ApiResponse;\n  trend_summary: {\n    current_average: number;\n    price_range: string;\n    sample_size: number;\n    analysis: string;\n  };\n  insights: string[];\n}\n\n// Market insights result structure\nexport interface MarketInsightsResult {\n  focus: string;\n  timeframe: string;\n  data_points: number;\n  insights: string[];\n  summary: string;\n  last_updated: string;\n}\n\n// MCP tool response structure\nexport interface MCPResponse {\n  content: {\n    type: 'text';\n    text: string;\n  }[];\n}\n\n// Rate limit information\nexport interface RateLimitStatus {\n  allowed: boolean;\n  remaining: {\n    perMinute: number;\n    perHour: number;\n  };\n  resetTime: {\n    perMinute: number;\n    perHour: number;\n  };\n}\n\n// Error response structure\nexport interface ErrorResponse {\n  error: {\n    code: string;\n    message: string;\n    ai_guidance?: string;\n    suggested_correction?: string;\n    error_type?: string;\n  };\n}\n\n// Query parsing result\nexport interface ParsedQuery {\n  item?: string;\n  location?: string;\n  retailer_type?: string;\n  max_price?: number;\n  min_price?: number;\n  confidence_score?: number;\n}\n\n// Malaysian location data\nexport type MalaysianState = \n  | 'kuala lumpur'\n  | 'selangor'\n  | 'johor'\n  | 'penang'\n  | 'perak'\n  | 'kedah'\n  | 'kelantan'\n  | 'terengganu'\n  | 'pahang'\n  | 'negeri sembilan'\n  | 'melaka'\n  | 'perlis'\n  | 'sabah'\n  | 'sarawak'\n  | 'putrajaya'\n  | 'labuan';\n\n// Retailer types\nexport type RetailerType = 'hypermarket' | 'supermarket' | 'convenience' | 'grocery';\n\n// Analysis types\nexport type AnalysisType = 'trend' | 'comparison' | 'volatility' | 'regional' | 'seasonal';\n\n// Time periods\nexport type TimePeriod = 'last_week' | 'last_month' | 'last_quarter' | 'last_year';\n\n// Query intents\nexport type QueryIntent = \n  | 'general_search'\n  | 'comparison'\n  | 'trend_analysis'\n  | 'find_cheapest'\n  | 'find_expensive'\n  | 'get_average'\n  | 'market_insights';
+/**
+ * TypeScript type definitions for ManaMurah Data API
+ */
+
+// Price data item structure
+export interface PriceItem {
+  item: string;
+  item_code?: string;
+  item_category?: string;
+  item_group?: string;
+  price: number;
+  premise: string;
+  premise_code?: string;
+  premise_category?: string;
+  chain?: string;
+  retailer_type?: string;
+  address?: string;
+  state?: string;
+  district?: string;
+  date: string;
+  coordinates?: {
+    lat: number;
+    lon: number;
+  };
+}
+
+// API response structure
+export interface ApiResponse {
+  data: PriceItem[];
+  ai_context?: {
+    summary: string;
+    key_insights: string[];
+    data_confidence: number;
+    last_updated: string;
+    regional_context: string;
+    market_conditions: string;
+    anomalies: any[];
+    price_statistics?: {
+      average: string;
+      min: string;
+      max: string;
+      range_percentage: string;
+    };
+  };
+  narrative?: {
+    brief: string;
+    detailed: string;
+    context: string;
+  };
+  suggested_questions?: string[];
+  meta: {
+    total: number;
+    data_source: string;
+    api_version?: string;
+    query_type?: string;
+    original_query?: string;
+    cache_hit?: boolean;
+    request_id?: string;
+    response_time?: string;
+  };
+}
+
+// Price search parameters
+export interface PriceSearchParams {
+  query?: string;
+  item?: string;
+  location?: string;
+  state?: string;
+  district?: string;
+  retailer_type?: 'hypermarket' | 'supermarket' | 'convenience' | 'grocery';
+  chain?: string;
+  max_price?: number;
+  min_price?: number;
+  limit?: number;
+  offset?: number;
+}
+
+// Price comparison parameters
+export interface PriceComparisonParams {
+  item: string;
+  regions?: string[];
+  comparison_type?: 'states' | 'retailers' | 'districts';
+  include_statistics?: boolean;
+}
+
+// Trend analysis parameters
+export interface TrendAnalysisParams {
+  items: string[];
+  analysis_type: 'trend' | 'volatility' | 'seasonal' | 'regional';
+  time_period?: 'last_week' | 'last_month' | 'last_quarter';
+  location?: string;
+}
+
+// Market insights parameters
+export interface MarketInsightsParams {
+  focus?: 'overview' | 'anomalies' | 'price_changes' | 'regional_differences';
+  categories?: string[];
+  timeframe?: 'today' | 'this_week' | 'this_month';
+}
+
+// Statistical data structure
+export interface PriceStatistics {
+  average: number;
+  min: number;
+  max: number;
+  count: number;
+  range?: number;
+}
+
+// Comparison result structure
+export interface ComparisonResult {
+  item: string;
+  comparison_type: string;
+  comparisons: {
+    region: string;
+    data: PriceItem[];
+    statistics: PriceStatistics;
+  }[];
+  summary: string;
+}
+
+// Trend analysis result structure
+export interface TrendResult {
+  items: string[];
+  analysis_type: string;
+  time_period: string;
+  current_data: ApiResponse;
+  trend_summary: {
+    current_average: number;
+    price_range: string;
+    sample_size: number;
+    analysis: string;
+  };
+  insights: string[];
+}
+
+// Market insights result structure
+export interface MarketInsightsResult {
+  focus: string;
+  timeframe: string;
+  data_points: number;
+  insights: string[];
+  summary: string;
+  last_updated: string;
+}
+
+// MCP tool response structure
+export interface MCPResponse {
+  content: {
+    type: 'text';
+    text: string;
+  }[];
+}
+
+// Rate limit information
+export interface RateLimitStatus {
+  allowed: boolean;
+  remaining: {
+    perMinute: number;
+    perHour: number;
+  };
+  resetTime: {
+    perMinute: number;
+    perHour: number;
+  };
+}
+
+// Error response structure
+export interface ErrorResponse {
+  error: {
+    code: string;
+    message: string;
+    ai_guidance?: string;
+    suggested_correction?: string;
+    error_type?: string;
+  };
+}
+
+// Query parsing result
+export interface ParsedQuery {
+  item?: string;
+  location?: string;
+  retailer_type?: string;
+  max_price?: number;
+  min_price?: number;
+  confidence_score?: number;
+}
+
+// Malaysian location data
+export type MalaysianState = 
+  | 'kuala lumpur'
+  | 'selangor'
+  | 'johor'
+  | 'penang'
+  | 'perak'
+  | 'kedah'
+  | 'kelantan'
+  | 'terengganu'
+  | 'pahang'
+  | 'negeri sembilan'
+  | 'melaka'
+  | 'perlis'
+  | 'sabah'
+  | 'sarawak'
+  | 'putrajaya'
+  | 'labuan';
+
+// Retailer types
+export type RetailerType = 'hypermarket' | 'supermarket' | 'convenience' | 'grocery';
+
+// Analysis types
+export type AnalysisType = 'trend' | 'comparison' | 'volatility' | 'regional' | 'seasonal';
+
+// Time periods
+export type TimePeriod = 'last_week' | 'last_month' | 'last_quarter' | 'last_year';
+
+// Query intents
+export type QueryIntent = 
+  | 'general_search'
+  | 'comparison'
+  | 'trend_analysis'
+  | 'find_cheapest'
+  | 'find_expensive'
+  | 'get_average'
+  | 'market_insights';

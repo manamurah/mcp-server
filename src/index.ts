@@ -1,4 +1,5 @@
-import { McpAgent } from '@cloudflare/ai/mcp';
+import { McpAgent } from 'agents/mcp';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ManaMurahApiClient } from './utils/api-client';
 import { QueryParser } from './utils/query-parser';
@@ -10,24 +11,27 @@ import { RateLimiter } from './utils/rate-limiter';
  * Provides Malaysian price data tools for Claude Desktop and AI applications
  */
 export class ManaMurahMCPAgent extends McpAgent {
+  server = new McpServer({
+    name: 'ManaMurah Data API',
+    version: '1.0.0',
+  });
+
   private apiClient: ManaMurahApiClient;
   private queryParser: QueryParser;
   private responseFormatter: ResponseFormatter;
   private rateLimiter: RateLimiter;
 
   constructor() {
-    super({
-      name: 'manamurah-data',
-      version: '1.0.0',
-      description: 'Malaysian price data from KPDN Pricecatcher via ManaMurah Data API'
-    });
+    super();
 
     // Initialize utilities
     this.apiClient = new ManaMurahApiClient();
     this.queryParser = new QueryParser();
     this.responseFormatter = new ResponseFormatter();
     this.rateLimiter = new RateLimiter();
+  }
 
+  async init() {
     this.setupTools();
   }
 
@@ -186,6 +190,7 @@ export default {
   async fetch(request: Request, env: any, ctx: ExecutionContext): Promise<Response> {
     try {
       const agent = new ManaMurahMCPAgent();
+      await agent.init();
       return await agent.run(request, { env, ctx });
     } catch (error) {
       return new Response(JSON.stringify({ 

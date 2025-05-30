@@ -1,7 +1,7 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "manamurah-mcp-server"
-main = "src/index.ts"
-compatibility_date = "2024-05-01"
+main = "src/index-simple.ts"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
