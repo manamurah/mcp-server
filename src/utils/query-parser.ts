@@ -1,0 +1,44 @@
+/**
+ * Natural Language Query Parser for ManaMurah MCP Server
+ * Extracts structured parameters from natural language queries
+ */
+export class QueryParser {
+  private itemPatterns: Record<string, string[]>;
+  private locationPatterns: Record<string, string[]>;
+  private retailerPatterns: Record<string, string[]>;
+
+  constructor() {
+    this.initializePatterns();
+  }
+
+  /**
+   * Parse natural language query into structured parameters
+   */
+  parseNaturalLanguage(query: string): any {
+    const queryLower = query.toLowerCase();
+    const params: any = {};
+
+    // Extract item
+    const item = this.extractItem(queryLower);
+    if (item) params.item = item;
+
+    // Extract location
+    const location = this.extractLocation(queryLower);
+    if (location) params.location = location;
+
+    // Extract retailer type
+    const retailerType = this.extractRetailerType(queryLower);
+    if (retailerType) params.retailer_type = retailerType;
+
+    // Extract price constraints
+    const priceConstraints = this.extractPriceConstraints(queryLower);
+    if (priceConstraints.max_price) params.max_price = priceConstraints.max_price;
+    if (priceConstraints.min_price) params.min_price = priceConstraints.min_price;
+
+    return params;
+  }
+
+  /**
+   * Initialize pattern matching dictionaries
+   */
+  private initializePatterns() {\n    this.itemPatterns = {\n      'rice': ['rice', 'beras', 'nasi', 'grain'],\n      'chicken': ['chicken', 'ayam', 'poultry', 'fowl'],\n      'beef': ['beef', 'daging lembu', 'meat', 'steak'],\n      'fish': ['fish', 'ikan', 'seafood'],\n      'vegetables': ['vegetables', 'sayur', 'veggie', 'greens'],\n      'milk': ['milk', 'susu', 'dairy'],\n      'eggs': ['eggs', 'telur', 'egg'],\n      'cooking oil': ['oil', 'minyak', 'cooking oil', 'palm oil'],\n      'sugar': ['sugar', 'gula', 'sweetener'],\n      'flour': ['flour', 'tepung'],\n      'bread': ['bread', 'roti'],\n      'noodles': ['noodles', 'mee', 'pasta'],\n      'fruits': ['fruits', 'buah', 'apple', 'banana', 'orange']\n    };\n\n    this.locationPatterns = {\n      'kuala lumpur': ['kuala lumpur', 'kl', 'klang valley', 'federal territory'],\n      'selangor': ['selangor', 'shah alam', 'petaling jaya', 'subang', 'klang'],\n      'johor': ['johor', 'johor bahru', 'jb', 'iskandar'],\n      'penang': ['penang', 'georgetown', 'butterworth', 'pulau pinang'],\n      'perak': ['perak', 'ipoh', 'taiping'],\n      'kedah': ['kedah', 'alor setar', 'langkawi'],\n      'kelantan': ['kelantan', 'kota bharu', 'kb'],\n      'terengganu': ['terengganu', 'kuala terengganu', 'kt'],\n      'pahang': ['pahang', 'kuantan', 'temerloh'],\n      'negeri sembilan': ['negeri sembilan', 'seremban', 'ns'],\n      'melaka': ['melaka', 'malacca', 'bandar melaka'],\n      'perlis': ['perlis', 'kangar'],\n      'sabah': ['sabah', 'kota kinabalu', 'kk', 'sandakan'],\n      'sarawak': ['sarawak', 'kuching', 'miri', 'sibu'],\n      'putrajaya': ['putrajaya', 'administrative capital'],\n      'labuan': ['labuan', 'federal territory labuan']\n    };\n\n    this.retailerPatterns = {\n      'hypermarket': [\n        'hypermarket', 'giant', 'tesco', 'lotus', 'mydin',\n        'big box', 'warehouse', 'wholesale'\n      ],\n      'supermarket': [\n        'supermarket', 'cold storage', 'jaya grocer', 'mercato',\n        'village grocer', 'ben\\'s independent grocer'\n      ],\n      'convenience': [\n        'convenience', '7-eleven', '99 speedmart', 'kk super mart',\n        'family mart', 'convenience store'\n      ],\n      'grocery': [\n        'grocery', 'kedai runcit', 'mini market', 'neighbourhood store'\n      ]\n    };\n  }\n\n  /**\n   * Extract item from query\n   */\n  private extractItem(query: string): string | null {\n    for (const [item, patterns] of Object.entries(this.itemPatterns)) {\n      if (patterns.some(pattern => query.includes(pattern))) {\n        return item;\n      }\n    }\n    return null;\n  }\n\n  /**\n   * Extract location from query\n   */\n  private extractLocation(query: string): string | null {\n    for (const [location, patterns] of Object.entries(this.locationPatterns)) {\n      if (patterns.some(pattern => query.includes(pattern))) {\n        return location;\n      }\n    }\n    return null;\n  }\n\n  /**\n   * Extract retailer type from query\n   */\n  private extractRetailerType(query: string): string | null {\n    for (const [retailerType, patterns] of Object.entries(this.retailerPatterns)) {\n      if (patterns.some(pattern => query.includes(pattern))) {\n        return retailerType;\n      }\n    }\n    return null;\n  }\n\n  /**\n   * Extract price constraints from query\n   */\n  private extractPriceConstraints(query: string): { max_price?: number; min_price?: number } {\n    const constraints: { max_price?: number; min_price?: number } = {};\n\n    // Extract maximum price constraints\n    const maxPricePatterns = [\n      /under rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /below rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /less than rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /cheaper than rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /maximum rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /max rm\\s*(\\d+(?:\\.\\d{1,2})?)/\n    ];\n\n    for (const pattern of maxPricePatterns) {\n      const match = query.match(pattern);\n      if (match) {\n        constraints.max_price = parseFloat(match[1]);\n        break;\n      }\n    }\n\n    // Extract minimum price constraints\n    const minPricePatterns = [\n      /above rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /over rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /more than rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /minimum rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /min rm\\s*(\\d+(?:\\.\\d{1,2})?)/,\n      /at least rm\\s*(\\d+(?:\\.\\d{1,2})?)/\n    ];\n\n    for (const pattern of minPricePatterns) {\n      const match = query.match(pattern);\n      if (match) {\n        constraints.min_price = parseFloat(match[1]);\n        break;\n      }\n    }\n\n    // Extract price range (e.g., \"between RM10 and RM20\")\n    const rangePattern = /between rm\\s*(\\d+(?:\\.\\d{1,2})?)\\s*and rm\\s*(\\d+(?:\\.\\d{1,2})?)/;\n    const rangeMatch = query.match(rangePattern);\n    if (rangeMatch) {\n      constraints.min_price = parseFloat(rangeMatch[1]);\n      constraints.max_price = parseFloat(rangeMatch[2]);\n    }\n\n    return constraints;\n  }\n\n  /**\n   * Determine query intent for better processing\n   */\n  getQueryIntent(query: string): string {\n    const queryLower = query.toLowerCase();\n\n    if (queryLower.includes('compare') || queryLower.includes('comparison')) {\n      return 'comparison';\n    }\n\n    if (queryLower.includes('trend') || queryLower.includes('change') || queryLower.includes('over time')) {\n      return 'trend_analysis';\n    }\n\n    if (queryLower.includes('cheapest') || queryLower.includes('lowest') || queryLower.includes('best deal')) {\n      return 'find_cheapest';\n    }\n\n    if (queryLower.includes('expensive') || queryLower.includes('highest') || queryLower.includes('premium')) {\n      return 'find_expensive';\n    }\n\n    if (queryLower.includes('average') || queryLower.includes('typical') || queryLower.includes('normal')) {\n      return 'get_average';\n    }\n\n    if (queryLower.includes('insight') || queryLower.includes('analysis') || queryLower.includes('market')) {\n      return 'market_insights';\n    }\n\n    return 'general_search';\n  }\n\n  /**\n   * Generate confidence score for parsed query\n   */\n  calculateParsingConfidence(originalQuery: string, parsedParams: any): number {\n    let score = 0.3; // Base score\n\n    // Add score for each successfully detected parameter\n    if (parsedParams.item) score += 0.3;\n    if (parsedParams.location) score += 0.2;\n    if (parsedParams.retailer_type) score += 0.1;\n    if (parsedParams.max_price || parsedParams.min_price) score += 0.1;\n\n    return Math.min(score, 1.0);\n  }\n\n  /**\n   * Suggest query improvements\n   */\n  suggestQueryImprovements(query: string, parsedParams: any): string[] {\n    const suggestions: string[] = [];\n    const queryLower = query.toLowerCase();\n\n    if (!parsedParams.item) {\n      suggestions.push('Try specifying an item like \"rice\", \"chicken\", or \"cooking oil\"');\n    }\n\n    if (!parsedParams.location) {\n      suggestions.push('Add a location like \"Kuala Lumpur\", \"Penang\", or \"Johor\" for more specific results');\n    }\n\n    if (queryLower.includes('cheap') && !parsedParams.max_price) {\n      suggestions.push('Consider adding a price limit like \"under RM20\" for budget-specific results');\n    }\n\n    return suggestions;\n  }\n}

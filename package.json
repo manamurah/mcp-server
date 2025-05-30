@@ -1,0 +1,54 @@
+{
+  "name": "manamurah-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for ManaMurah Data API - Malaysian price data integration for Claude Desktop and AI tools",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "malaysian-prices",
+    "kpdn",
+    "price-data",
+    "claude-desktop",
+    "ai-tools",
+    "cloudflare-workers"
+  ],
+  "author": "ManaMurah Data API",
+  "license": "MIT",
+  "files": [
+    "src/**/*",
+    "wrangler.toml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@cloudflare/ai": "^1.0.0",
+    "@modelcontextprotocol/server": "^1.0.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "wrangler": "^3.78.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/manamurah/mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/manamurah/api/issues"
+  },
+  "homepage": "https://api.manamurah.com"
+}
