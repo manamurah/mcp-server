@@ -1,244 +1,208 @@
-# ManaMurah MCP Server
+# manamurah-mcp-server
 
-A Model Context Protocol (MCP) server for Malaysian price data from KPDN Pricecatcher. This server enables direct integration with Claude Desktop and other MCP-compatible AI tools for querying Malaysian consumer goods prices.
+Remote [Model Context Protocol](https://modelcontextprotocol.io) (MCP)
+server for Malaysian PriceCatcher consumer price data. Deployed on
+Cloudflare Workers. 10 strongly-typed tools for AI agents.
 
-## Features
+**Live endpoint:** `https://mcp.manamurah.com/mcp` (POST, JSON-RPC 2.0)
 
-🇲🇾 **Official Malaysian Price Data** - KPDN Pricecatcher data via OpenDOSM  
-🤖 **AI-Optimized** - Natural language queries with intelligent parsing  
-⚡ **Serverless** - Deployed on Cloudflare Workers for global performance  
-🔒 **Rate Limited** - Built-in abuse protection and fair usage  
-📊 **Rich Analytics** - Price comparisons, trends, and market insights  
-🎯 **Claude Desktop Ready** - One-click setup for Claude Desktop integration  
+**Data source:** [data.gov.my](https://data.gov.my) PriceCatcher —
+~3,800 premises × ~756 items across all 16 Malaysian states/territories,
+refreshed weekly. 100% public government data. No credentials needed
+anywhere in the stack.
 
-## Live Demo
+---
 
-The MCP server is deployed and accessible at:
-- **Production**: https://mcp.manamurah.com
-- **API Endpoint**: https://mcp.manamurah.com/mcp
-- **Status**: https://mcp.manamurah.com/ (returns server info)
+## Install — Claude Desktop
 
-## Quick Start
-
-### Deploy to Cloudflare Workers
-
-```bash
-# Clone or create from template
-npm create cloudflare@latest manamurah-mcp-server --template=cloudflare/ai/demos/remote-mcp-authless
-
-# Replace src/ contents with ManaMurah implementation
-# (Copy files from this directory)
-
-# Install dependencies
-npm install
-
-# Deploy to Cloudflare Workers
-npm run deploy
-```
-
-### Connect to Claude Desktop
-
-1. Get your deployed Workers URL (e.g., `https://mcp.manamurah.com`)
-2. Add to Claude Desktop MCP configuration:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`
+on macOS (or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 
 ```json
 {
-  "manamurah": {
-    "command": "node",
-    "args": ["/path/to/mcp-client.js"],
-    "env": {
-      "MCP_SERVER_URL": "https://mcp.manamurah.com/sse"
+  "mcpServers": {
+    "manamurah": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.manamurah.com/mcp"]
     }
   }
 }
 ```
 
-3. Restart Claude Desktop
-4. Start asking about Malaysian prices!
+Restart Claude Desktop. You should see the 10 tools listed under
+the 🔌 icon. Ask something like *"harga tembikai di Selangor?"* or
+*"what's the cheapest chicken in KL this week?"* — the LLM will
+chain `search_items` → `find_cheapest` automatically.
 
-## Available Tools
+## Install — Claude Code / other MCP clients
 
-### 🔍 get_malaysian_prices
-Search for current prices with natural language queries.
-
-**Examples:**
-- "rice prices in Kuala Lumpur"
-- "cheapest chicken in Penang hypermarkets"
-- "cooking oil under RM20 in Selangor"
-
-### 📊 compare_prices
-Compare prices across different regions or retail chains.
-
-**Examples:**
-- Compare rice prices between KL and Penang
-- Find price differences across retail chains
-- Regional price analysis for specific items
-
-### 📈 analyze_price_trends
-Analyze price trends and market patterns over time.
-
-**Examples:**
-- Price volatility analysis
-- Seasonal price patterns
-- Regional market trends
-
-### 💡 get_market_insights
-Get market intelligence and insights about price anomalies.
-
-**Examples:**
-- Recent price changes
-- Market anomaly detection
-- Regional price differences
-
-## Example Usage
-
-### Basic Price Search
-```
-User: "What are rice prices in Kuala Lumpur?"
-
-MCP Response:
-📊 Summary: Rice prices in Kuala Lumpur range from RM15.20-RM25.80 per 5kg
-
-💡 Key Insights:
-• Hypermarkets offer 18% lower prices than convenience stores
-• Significant price variation exists across different retailers
-
-📈 Price Statistics:
-• Average: RM18.50
-• Range: RM15.20 - RM25.80
-• Price Variation: 32%
-
-[Detailed price listings follow...]
-```
-
-### Price Comparison
-```
-User: "Compare chicken prices between Penang and Johor"
-
-MCP Response:
-📊 Summary: Penang has lower average chicken prices (RM8.20) compared to Johor (RM9.10)
-
-## Regional Comparison
-
-### 1. Penang
-• Average Price: RM8.20
-• Price Range: RM7.50 - RM9.80
-• Sample Size: 15 price points
-
-### 2. Johor
-• Average Price: RM9.10
-• Price Range: RM8.20 - RM11.50
-• Sample Size: 12 price points
-
-💡 Comparison Insights:
-• Most Affordable: Penang (RM8.20 average)
-• Potential Savings: RM0.90 (9.9%) by choosing Penang
-```
-
-## Development
-
-### Local Development
+Any client that supports remote MCP (JSON-RPC over HTTP POST):
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Type checking
-npm run type-check
-
-# Linting
-npm run lint
+# One-shot tool listing:
+curl -sS -X POST https://mcp.manamurah.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq .
 ```
 
-### Project Structure
+Clients that speak native remote MCP can point directly at
+`https://mcp.manamurah.com/mcp`. Clients that only speak stdio
+(e.g. older MCP tooling) can use [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
+as a shim.
+
+## Tools
+
+All 10 tools are read-only, public, and capped on response size to
+keep LLM contexts compact. Every tool carries a detailed description
++ JSON-Schema input so the LLM picks the right one without guessing.
+
+| Tool                | Purpose                                                    |
+| ------------------- | ---------------------------------------------------------- |
+| `search_items`      | Find items by name in Malay / English / Chinese / Tamil    |
+| `find_cheapest`     | Up to 10 cheapest premises for one item this week          |
+| `price_history`     | Weekly price trend at national/state/district/chain/urban  |
+| `nearby_premises`   | Premises within a geographic radius of a coordinate        |
+| `compare_prices`    | One item's price across national + state + district + more |
+| `list_chains`       | Directory of retail chains + premise counts + coverage     |
+| `price_change`      | Delta between current week and 1 / 3 / 6 / 12 months ago   |
+| `top_movers`        | Biggest weekly risers + fallers                            |
+| `category_trends`   | Per-category movement over a window                        |
+| `basket_watch`      | Total cost for a 1–20 item basket over time                |
+
+All tools require zero setup beyond the MCP config above. No API
+keys. No rate limiting on the client side (upstream has a 12h KV
+edge cache so repeat queries are essentially free).
+
+## Example conversation
+
+> **You:** Berapa harga tembikai merah tanpa biji di Selangor minggu ini?
+>
+> **Claude** *(calls `search_items(query="tembikai")` → gets item_code 21
+> → calls `find_cheapest(item_code=21, state="Selangor")`)*:
+>
+> Tembikai merah tanpa biji di Selangor untuk minggu 2026-04-20:
+> hanya ada 1 kedai yang melaporkan data PriceCatcher —
+> **Jaya Grocer D'Pulze Cyberjaya** di daerah Sepang pada **RM 5.20/kg**.
+> Data lain di KL menunjukkan NSK Seputeh/Cheras/Kepong menjual tembikai
+> serupa pada RM 1.69/kg — mungkin berbaloi keluar PJ/KL jika anda di
+> Selangor Selatan.
+
+The structured response the LLM worked from:
+
+```json
+{
+  "item_code": 21,
+  "item_name": "TEMBIKAI MERAH TANPA BIJI",
+  "weekdate": "2026-04-20",
+  "results": [
+    {
+      "weekdate": "2026-04-20",
+      "price": 5.20,
+      "premise_name": "JAYA GROCER D`PULZE CYBERJAYA",
+      "chain": "JAYA GROCER",
+      "chain_type": "SUPERMARKET",
+      "state": "Selangor",
+      "district": "Sepang"
+    }
+  ],
+  "scope": { "state": "Selangor", "district": null, "chain": null, "chain_type": null },
+  "status": "ok",
+  "reason": null,
+  "warnings": []
+}
+```
+
+## Architecture
 
 ```
-src/
-├── index.ts                 # Main MCP server implementation
-├── utils/
-│   ├── api-client.ts        # ManaMurah API client
-│   ├── query-parser.ts      # Natural language query parsing
-│   ├── response-formatter.ts # MCP response formatting
-│   └── rate-limiter.ts      # Rate limiting implementation
-└── types/
-    └── manamurah.ts         # TypeScript type definitions
+ Claude Desktop ─ stdio ─ mcp-remote ─ HTTPS ─ mcp.manamurah.com
+                                                    │
+                                               (Cloudflare Worker, this repo)
+                                                    │
+                                                  fetch
+                                                    ▼
+                                        manamurah.com/api/v2/mcp/*
+                                                    │
+                                               (SvelteKit site +
+                                                Cloudflare KV edge cache,
+                                                12h TTL)
+                                                    │
+                                                    ▼
+                                            public price data
 ```
 
-### Configuration
+This Worker is a thin protocol shim — it speaks MCP JSON-RPC on one
+side and standard `fetch()` on the other. No business logic, no
+credentials, no database binding. Every tool call goes to exactly
+one upstream `/api/v2/mcp/<tool>` endpoint and passes the JSON
+response through.
 
-Environment variables in `wrangler.toml`:
+Keeping the shim thin means:
+- The ~400 lines here are almost all tool-description JSON.
+- Query/caching/index logic lives upstream where it's co-located
+  with the data layer.
+- Updating a tool's behaviour rarely requires a Worker redeploy.
+
+## Self-host / fork
+
+```bash
+git clone https://github.com/manamurah/mcp-server
+cd mcp-server
+pnpm install
+
+# Local dev — hot-reloads on src/ changes, binds to 127.0.0.1:8787
+pnpm dev
+
+# Exercise it:
+curl -sS -X POST http://127.0.0.1:8787/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
+
+# Deploy to your own Cloudflare account:
+pnpm deploy
+```
+
+To point at a staging copy of the upstream (useful when
+[manamurah_20240322](https://gitlab.com/agagroup/apps/manamurah_20240322)
+ships new `/api/v2/mcp/*` endpoints), override the base URL in
+`wrangler.toml`:
 
 ```toml
 [vars]
-MANAMURAH_API_BASE = "https://api.manamurah.com"
-RATE_LIMIT_ENABLED = "true"
-CACHE_TTL = "300"
-MAX_QUERIES_PER_MINUTE = "10"
-MAX_QUERIES_PER_HOUR = "100"
+MANAMURAH_API_BASE = "https://staging.manamurah.com"
 ```
 
-## Rate Limits
+## Protocol notes
 
-- **Per Minute**: 10 requests
-- **Per Hour**: 100 requests
-- **Automatic Cleanup**: Old request data is cleaned up automatically
+- **Transport:** HTTP POST at `/mcp`, JSON-RPC 2.0. CORS-open so
+  browser-based MCP clients work without a proxy.
+- **Methods supported:** `initialize`, `tools/list`, `tools/call`,
+  `prompts/list` (empty), `resources/list` (empty), `ping`.
+- **Tool response shape:** MCP `content: [{ type: "text", text: ... }]`
+  blocks with the raw JSON payload also attached as
+  `structuredContent` for clients that prefer it.
+- **Error handling:** business-level issues (invalid args, no data
+  for this week) come back as `{ "status": "no_data", "reason": ... }`
+  at HTTP 200 so the LLM can narrate them. Only transport/infra
+  failures raise JSON-RPC errors.
+- **Upstream errors:** 5xx on `/api/v2/mcp/*` bubbles up as JSON-RPC
+  `code: -32603` with the upstream status in `data`. 4xx passes
+  through unchanged (client validation error already shaped as a
+  JSON envelope on the upstream side).
 
-Rate limits help ensure fair usage and prevent abuse while allowing genuine research and analysis.
+## Related
 
-## Features
-
-### Natural Language Processing
-- Intelligent extraction of items, locations, and price constraints
-- Support for Malaysian terms (e.g., "beras" for rice, "ayam" for chicken)
-- Price range detection ("under RM20", "between RM10 and RM15")
-- Location recognition for all Malaysian states and major cities
-
-### Rich Response Formatting
-- Markdown-formatted responses optimized for Claude Desktop
-- Statistical analysis with averages, ranges, and insights
-- Suggested follow-up questions for continued exploration
-- Data source attribution and freshness indicators
-
-### Error Handling
-- User-friendly error messages with helpful suggestions
-- Graceful degradation when data is unavailable
-- Query improvement recommendations
-- Comprehensive error logging for debugging
-
-## Data Source
-
-**Official Government Data**: KPDN Pricecatcher program via [OpenDOSM](https://open.dosm.gov.my)
-
-- Daily data updates (subject to government publication schedules)
-- Comprehensive coverage of Malaysian retail prices
-- Data includes hypermarkets, supermarkets, convenience stores, and grocery shops
-- Covers all Malaysian states and major urban centers
-
-## Support
-
-### Getting Help
-- **Documentation**: [api.manamurah.com/docs](https://api.manamurah.com/docs)
-- **AI Integration Guide**: [Complete guide for AI developers](../docs/ai-integration-guide.md)
-- **Issues**: [GitHub Issues](https://github.com/manamurah/api/issues)
-
-### Contact
-- **General Support**: support@manamurah.com
-- **AI Integration**: ai-support@manamurah.com
-- **Enterprise**: enterprise@manamurah.com
+- **[manamurah-mcp-2026](https://gitlab.com/agagroup/data/manamurah-mcp-2026)**
+  — Python stdio MCP server covering the same 10 tools. Use this
+  instead if you want a local-only MCP binary (no Cloudflare, no
+  Worker hop).
+- **[manamurah_20240322](https://gitlab.com/agagroup/apps/manamurah_20240322)**
+  — the SvelteKit site at manamurah.com. Hosts both the public
+  website and the `/api/v2/mcp/*` proxy endpoints this Worker calls.
+- **[manamurah-data-2026](https://gitlab.com/agagroup/data/manamurah-data-2026)**
+  — the Python ETL that populates the indices behind everything
+  else. Nightly pipeline, data.gov.my PriceCatcher source of truth.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-Contributions welcome! Please read our contributing guidelines and submit pull requests for any improvements.
-
----
-
-**Built with ❤️ for the Malaysian data community**
-
-Making Malaysian price data accessible to AI tools and researchers worldwide.
+MIT. See [LICENSE](LICENSE).
