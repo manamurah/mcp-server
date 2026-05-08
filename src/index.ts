@@ -69,7 +69,7 @@ import { CHANGELOG_MARKDOWN } from './changelog.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.3.0';
+const SERVER_VERSION = '2.4.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -107,7 +107,15 @@ const CHAIN_TYPES = [
 	'FOODCOURT',
 ] as const;
 
-const SCOPES = ['national', 'state', 'district', 'chain', 'urbanisation', 'region'] as const;
+const SCOPES = [
+	'national',
+	'state',
+	'district',
+	'chain',
+	'urbanisation',
+	'region',
+	'chain_group',
+] as const;
 const MONTHS_WINDOW = [1, 3, 6, 12] as const;
 
 const STATES_HINT =
@@ -179,7 +187,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'price_history',
 		description:
-			"Get weekly price trend for one item at a rollup scope (national / state / district / chain / urbanisation / region). Oldest-first time series, up to 52 weeks. Use for questions like 'how has X trended over 3 months'. scope='region' compares peninsular vs East Malaysia ('semenanjung' vs 'borneo') — useful for headline averages that aren't peninsular-weighted like 'national'.",
+			"Get weekly price trend for one item at a rollup scope (national / state / district / chain / urbanisation / region / chain_group). Oldest-first time series, up to 52 weeks. Use for questions like 'how has X trended over 3 months'. scope='region' compares peninsular vs East Malaysia ('semenanjung' vs 'borneo') — useful for headline averages that aren't peninsular-weighted like 'national'. scope='chain_group' rolls premises up by storefront type (slug values: 'supermarket', 'kedai-runcit', 'pasar') and is monthly-only — the upstream API only has chain_group rollups in the monthly index, so weekly history is not available.",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -193,7 +201,7 @@ const TOOLS: MCPTool[] = [
 					type: 'string',
 					maxLength: 64,
 					description:
-						"Required when scope != 'national'. State name for scope='state', chain name for 'chain', 'URBAN'/'SUBURBAN'/'RURAL' for 'urbanisation', 'semenanjung'/'borneo' for 'region'.",
+						"Required when scope != 'national'. State name for scope='state', chain name for 'chain', 'URBAN'/'SUBURBAN'/'RURAL' for 'urbanisation', 'semenanjung'/'borneo' for 'region', 'supermarket'/'kedai-runcit'/'pasar' for 'chain_group' (note hyphen in 'kedai-runcit').",
 				},
 				weeks: {
 					type: 'integer',
@@ -277,7 +285,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'price_change',
 		description:
-			"Compare one item's current week to its price 1/3/6/12 months ago at any rollup scope. Returns current_week, comparison_week, absolute_change, pct_change, and direction (up/down/stable). Use for 'how much has X changed' questions.",
+			"Compare one item's current week to its price 1/3/6/12 months ago at any rollup scope (national / state / district / chain / urbanisation / region / chain_group). Returns current_week, comparison_week, absolute_change, pct_change, and direction (up/down/stable). Use for 'how much has X changed' questions. scope='chain_group' rolls premises up by storefront type — slug values 'supermarket', 'kedai-runcit', 'pasar' — and resolves on the monthly index (no period flag needed).",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -297,7 +305,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'top_movers',
 		description:
-			"The items that moved most in price this week vs last week (or month vs prev month with period='monthly'). Returns top N risers and fallers sorted by absolute percentage change. Use for 'what went up/down this week' or 'biggest price changes'.",
+			"The items that moved most in price this week vs last week (or month vs prev month with period='monthly'). Returns top N risers and fallers sorted by absolute percentage change. Use for 'what went up/down this week' or 'biggest price changes'. The scope filters (state / region / chain_group) are mutually exclusive — pass at most one. chain_group requires period='monthly' (storefront-type rollups only exist in the monthly index).",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -310,19 +318,25 @@ const TOOLS: MCPTool[] = [
 					type: 'string',
 					maxLength: 64,
 					description:
-						'When set, movements are computed on the state rollup. Mutually exclusive with region.',
+						'When set, movements are computed on the state rollup. Mutually exclusive with region and chain_group.',
 				},
 				region: {
 					type: 'string',
 					enum: ['semenanjung', 'borneo'],
 					description:
-						"When set, movements are computed on the region rollup ('semenanjung' = peninsular, 'borneo' = Sabah/Sarawak/Labuan). Mutually exclusive with state.",
+						"When set, movements are computed on the region rollup ('semenanjung' = peninsular, 'borneo' = Sabah/Sarawak/Labuan). Mutually exclusive with state and chain_group.",
+				},
+				chain_group: {
+					type: 'string',
+					enum: ['supermarket', 'kedai-runcit', 'pasar'],
+					description:
+						"When set, movements are computed on the chain_group (storefront-type) rollup. Slug values: 'supermarket', 'kedai-runcit' (note hyphen), 'pasar'. Monthly-only — must be paired with period='monthly'. Mutually exclusive with state and region.",
 				},
 				period: {
 					type: 'string',
 					enum: ['weekly', 'monthly'],
 					description:
-						"Comparison grain. 'weekly' (default) = WoW; 'monthly' = MoM and surfaces yoy_pct per row.",
+						"Comparison grain. 'weekly' (default) = WoW; 'monthly' = MoM and surfaces yoy_pct per row. Required to be 'monthly' when chain_group is set.",
 				},
 				limit: { type: 'integer', minimum: 1, maximum: 20 },
 			},
@@ -332,7 +346,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'category_trends',
 		description:
-			"Summarise price movement per item_category over 1/3/6/12 months. Groups items by category, returns avg_pct_change + top riser + top faller per category. Use for 'which categories went up' or 'food inflation by category'.",
+			"Summarise price movement per item_category over 1/3/6/12 months at any rollup scope (national / state / district / chain / urbanisation / region / chain_group). Groups items by category, returns avg_pct_change + top riser + top faller per category. Use for 'which categories went up' or 'food inflation by category'. scope='chain_group' rolls premises up by storefront type — slug values 'supermarket', 'kedai-runcit', 'pasar' — and resolves on the monthly index.",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -346,7 +360,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'basket_watch',
 		description:
-			"Track total cost for a 1–20 item basket over 1/3/6/12 months. Returns current_total, comparison_total, pct_change, and per-item breakdown. Items missing from either week are listed as missing_items and excluded from totals (no silent zero-fill).",
+			"Track total cost for a 1–20 item basket over 1/3/6/12 months at any rollup scope (national / state / district / chain / urbanisation / region / chain_group). Returns current_total, comparison_total, pct_change, and per-item breakdown. Items missing from either week are listed as missing_items and excluded from totals (no silent zero-fill). scope='chain_group' rolls premises up by storefront type — slug values 'supermarket', 'kedai-runcit', 'pasar' — and resolves on the monthly index.",
 		inputSchema: {
 			type: 'object',
 			properties: {
