@@ -59,6 +59,33 @@ interface MCPResponse {
 	error?: { code: number; message: string; data?: unknown };
 }
 
+import { CHANGELOG_MARKDOWN } from './changelog.js';
+
+// ---------------------------------------------------------------------
+// Server identity — single source of truth for serverInfo.version,
+// the version field on GET /, and what registries display. Bump
+// per the policy embedded in the root response (see ROOT_VERSIONING).
+// ---------------------------------------------------------------------
+
+const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
+const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
+const SERVER_VERSION = '2.2.0';
+const PROTOCOL_VERSION = '2024-11-05';
+
+const ROOT_VERSIONING = {
+	scheme: 'semver',
+	current: SERVER_VERSION,
+	policy: {
+		major:
+			'Breaking: tool removed, required input added, output shape change, enum value removed.',
+		minor:
+			'Additive: new tool, new optional input field, new output field, broader enum.',
+		patch: 'Bug fixes, performance, response stability — no schema change.',
+	},
+	deprecation_window_days: 90,
+	changelog: '/changelog',
+} as const;
+
 interface Env {
 	/** Base URL for the proxy surface. Default: https://manamurah.com */
 	MANAMURAH_API_BASE?: string;
@@ -80,7 +107,7 @@ const CHAIN_TYPES = [
 	'FOODCOURT',
 ] as const;
 
-const SCOPES = ['national', 'state', 'district', 'chain', 'urbanisation'] as const;
+const SCOPES = ['national', 'state', 'district', 'chain', 'urbanisation', 'region'] as const;
 const MONTHS_WINDOW = [1, 3, 6, 12] as const;
 
 const STATES_HINT =
@@ -152,7 +179,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'price_history',
 		description:
-			"Get weekly price trend for one item at a rollup scope (national / state / district / chain / urbanisation). Oldest-first time series, up to 52 weeks. Use for questions like 'how has X trended over 3 months'.",
+			"Get weekly price trend for one item at a rollup scope (national / state / district / chain / urbanisation / region). Oldest-first time series, up to 52 weeks. Use for questions like 'how has X trended over 3 months'. scope='region' compares peninsular vs East Malaysia ('semenanjung' vs 'borneo') — useful for headline averages that aren't peninsular-weighted like 'national'.",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -166,7 +193,7 @@ const TOOLS: MCPTool[] = [
 					type: 'string',
 					maxLength: 64,
 					description:
-						"Required when scope != 'national'. State name for scope='state', chain name for 'chain', 'URBAN'/'SUBURBAN'/'RURAL' for 'urbanisation'.",
+						"Required when scope != 'national'. State name for scope='state', chain name for 'chain', 'URBAN'/'SUBURBAN'/'RURAL' for 'urbanisation', 'semenanjung'/'borneo' for 'region'.",
 				},
 				weeks: {
 					type: 'integer',
@@ -270,7 +297,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'top_movers',
 		description:
-			"The items that moved most in price this week vs last week. Returns top N risers and fallers sorted by absolute percentage change. Use for 'what went up/down this week' or 'biggest price changes'.",
+			"The items that moved most in price this week vs last week (or month vs prev month with period='monthly'). Returns top N risers and fallers sorted by absolute percentage change. Use for 'what went up/down this week' or 'biggest price changes'.",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -282,7 +309,20 @@ const TOOLS: MCPTool[] = [
 				state: {
 					type: 'string',
 					maxLength: 64,
-					description: 'When set, movements are computed on the state rollup.',
+					description:
+						'When set, movements are computed on the state rollup. Mutually exclusive with region.',
+				},
+				region: {
+					type: 'string',
+					enum: ['semenanjung', 'borneo'],
+					description:
+						"When set, movements are computed on the region rollup ('semenanjung' = peninsular, 'borneo' = Sabah/Sarawak/Labuan). Mutually exclusive with state.",
+				},
+				period: {
+					type: 'string',
+					enum: ['weekly', 'monthly'],
+					description:
+						"Comparison grain. 'weekly' (default) = WoW; 'monthly' = MoM and surfaces yoy_pct per row.",
 				},
 				limit: { type: 'integer', minimum: 1, maximum: 20 },
 			},
@@ -382,9 +422,9 @@ function handleInitialize(request: MCPRequest): MCPResponse {
 		jsonrpc: '2.0',
 		id: request.id,
 		result: {
-			protocolVersion: '2024-11-05',
+			protocolVersion: PROTOCOL_VERSION,
 			capabilities: { tools: {}, prompts: {}, resources: {} },
-			serverInfo: { name: 'manamurah', version: '2.0.0' },
+			serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
 		},
 	};
 }
@@ -538,18 +578,65 @@ export default {
 			return jsonResponse(response);
 		}
 
-		// Root — server info for humans hitting the URL in a browser.
+		// Changelog — markdown so registry crawlers / curl users can read
+		// release notes without cloning the repo. Mirror of CHANGELOG.md
+		// at repo root (kept in sync via src/changelog.ts).
+		if (path === '/changelog' || path === '/changelog/') {
+			return new Response(CHANGELOG_MARKDOWN, {
+				status: 200,
+				headers: {
+					'Content-Type': 'text/markdown; charset=utf-8',
+					'Cache-Control': 'public, max-age=300',
+					...CORS_HEADERS,
+				},
+			});
+		}
+
+		// Root — self-describing manifest for registries, crawlers, and
+		// humans hitting the URL in a browser. Includes the full tool
+		// catalogue (with input schemas) so a directory can index every
+		// tool's contract in one GET, no JSON-RPC needed. Lightweight
+		// (~6 KB) and served from edge — fine to leave uncached client-
+		// side so a fresh deploy is reflected immediately.
 		if (path === '/' || path === '') {
 			return jsonResponse({
-				name: 'manamurah-mcp-server',
-				version: '2.0.0',
+				// Identity
+				name: SERVER_PACKAGE_NAME,
+				version: SERVER_VERSION,
 				description:
 					'MCP server for Malaysian PriceCatcher consumer price data. 10 strongly-typed tools proxied from manamurah.com.',
-				protocolVersion: '2024-11-05',
-				endpoints: { mcp: '/mcp (POST, JSON-RPC)' },
-				tools: TOOLS.map((t) => t.name),
-				upstream: baseUrl,
+				publisher: 'manamurah.com',
+				license: 'MIT',
+
+				// Discovery
+				homepage: 'https://manamurah.com',
+				documentation: 'https://mcp.manamurah.com/',
+				changelog: 'https://mcp.manamurah.com/changelog',
+				icon: 'https://manamurah.com/apple-touch-icon.png',
+
+				// Protocol
+				protocolVersion: PROTOCOL_VERSION,
+				capabilities: { tools: {}, prompts: {}, resources: {} },
+				endpoints: {
+					mcp: '/mcp',
+					changelog: '/changelog',
+				},
+
+				// Tool catalogue — full schemas so registries can index in one GET.
+				tool_count: TOOLS.length,
+				tools: TOOLS,
+
+				// Versioning policy
+				versioning: ROOT_VERSIONING,
+
+				// Data lineage
 				data_source: 'https://data.gov.my PriceCatcher',
+				data_license: 'Open Data Licence (Malaysia) — public government data',
+				upstream: baseUrl,
+
+				// Operational
+				rate_limit: '120 req / 60s per IP (enforced upstream)',
+				auth: 'none — public read-only',
 			});
 		}
 

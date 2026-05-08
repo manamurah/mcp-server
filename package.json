@@ -1,6 +1,6 @@
 {
 	"name": "manamurah-mcp-server",
-	"version": "2.0.0",
+	"version": "2.2.0",
 	"description": "Remote MCP (Model Context Protocol) server for Malaysian PriceCatcher consumer price data — 10 strongly-typed tools for AI agents, deployed on Cloudflare Workers.",
 	"main": "src/index.ts",
 	"scripts": {
