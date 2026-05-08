@@ -6,6 +6,39 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.4.0] — 2026-05-08
+
+### Added
+
+- **`scope='chain_group'`** is now declared on the four scope-aware tools
+  (`price_history`, `price_change`, `category_trends`, `basket_watch`).
+  Pair with `scope_value` of `'supermarket'`, `'kedai-runcit'` (note
+  hyphen), or `'pasar'` — the three storefront-type buckets the upstream
+  monthly index aggregates premises into. Closes the schema gap with the
+  upstream API which already accepts `chain_group` as a scope; the
+  Worker schema now advertises it so LLMs reading the catalogue know
+  it's valid.
+- **`top_movers` gains `chain_group`.** Mutually exclusive with `state`
+  and `region`. Pairs with `period='monthly'` because storefront-type
+  rollups only live in the monthly index — week-over-week chain_group
+  movement isn't computed upstream.
+
+### Notes
+
+- **Monthly-only.** `chain_group` is exposed in the schema for the four
+  scope-aware tools, but the upstream `/api/v2/mcp/*` routes will reject
+  weekly windows for it (no `manamurah_prices_chain_group_weekly` index
+  exists). `price_change`, `category_trends`, and `basket_watch` already
+  resolve on the monthly index by design (1/3/6/12-month windows), so
+  the constraint is invisible there. `price_history` and `top_movers`
+  enforce the constraint at runtime via the SK API; this Worker just
+  forwards the call. Tool descriptions now flag the constraint up-front
+  so LLMs don't try `period='weekly'` with a chain_group scope.
+
+### Changed
+
+- `serverInfo.version` returned by `initialize` is now `2.4.0`.
+
 ## [2.3.0] — 2026-05-08
 
 ### Added
