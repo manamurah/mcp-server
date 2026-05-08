@@ -69,7 +69,7 @@ import { CHANGELOG_MARKDOWN } from './changelog.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.2.0';
+const SERVER_VERSION = '2.3.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -592,6 +592,55 @@ export default {
 			});
 		}
 
+		// MCP Server Card (SEP-2127 / .well-known discovery) — lets agents
+		// like ChatGPT, Claude Desktop, and registry crawlers
+		// auto-discover this server's transport, name, and version
+		// without speaking JSON-RPC. Path is the one isitagentready.com's
+		// validator probes; SEP-2127 also accepts /.well-known/mcp-server-card
+		// (extensionless) so we serve there too as an alias.
+		if (
+			path === '/.well-known/mcp/server-card.json' ||
+			path === '/.well-known/mcp-server-card' ||
+			path === '/.well-known/mcp-server-card/'
+		) {
+			return jsonResponse({
+				$schema:
+					'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json',
+				name: 'com.manamurah/mcp-server',
+				version: SERVER_VERSION,
+				title: 'ManaMurah MCP Server',
+				description:
+					'MCP server for Malaysian PriceCatcher consumer price data — 10 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, more) sourced from data.gov.my PriceCatcher.',
+				websiteUrl: 'https://mcp.manamurah.com/',
+				repository: {
+					url: 'https://github.com/manamurah/mcp-server',
+					source: 'github',
+				},
+				icons: [
+					{
+						src: 'https://manamurah.com/apple-touch-icon.png',
+						sizes: ['180x180'],
+						mimeType: 'image/png',
+					},
+				],
+				remotes: [
+					{
+						type: 'streamable-http',
+						url: 'https://mcp.manamurah.com/mcp',
+						supportedProtocolVersions: [PROTOCOL_VERSION],
+					},
+				],
+				_meta: {
+					license: 'MIT',
+					publisher: 'manamurah.com',
+					data_source: 'https://data.gov.my PriceCatcher',
+					data_license: 'Open Data Licence (Malaysia)',
+					auth: 'none — public read-only',
+					rate_limit: '120 req / 60s per IP',
+				},
+			});
+		}
+
 		// Root — self-describing manifest for registries, crawlers, and
 		// humans hitting the URL in a browser. Includes the full tool
 		// catalogue (with input schemas) so a directory can index every
@@ -620,6 +669,7 @@ export default {
 				endpoints: {
 					mcp: '/mcp',
 					changelog: '/changelog',
+					server_card: '/.well-known/mcp/server-card.json',
 				},
 
 				// Tool catalogue — full schemas so registries can index in one GET.

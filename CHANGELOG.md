@@ -6,6 +6,29 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.3.0] — 2026-05-08
+
+### Added
+
+- **MCP Server Card** at `/.well-known/mcp/server-card.json` per
+  [SEP-2127](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127).
+  Lets agents (ChatGPT Custom Connectors, Claude Desktop, IDE
+  extensions) and registry crawlers auto-discover the server's
+  transport URL, name, version, license, repository, and icon
+  without speaking JSON-RPC. The card carries `name` in reverse-DNS
+  format (`com.manamurah/mcp-server`), the `streamable-http` remote
+  pointing at `/mcp`, branding (`icons[]`, `websiteUrl`), and a
+  `_meta` block echoing the data-license / rate-limit / auth fields
+  from the root manifest. SEP path alias `/.well-known/mcp-server-card`
+  (extensionless) serves the same payload — both validators that
+  probe either path get a hit.
+
+### Changed
+
+- `serverInfo.version` returned by `initialize` is now `2.3.0`.
+- Root manifest's `endpoints` block gains a `server_card` pointer at
+  the new well-known URL.
+
 ## [2.2.0] — 2026-05-08
 
 ### Added
