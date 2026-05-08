@@ -13,7 +13,12 @@ anywhere in the stack.
 
 ---
 
-## Install — Claude Desktop
+## Install
+
+The server speaks streamable HTTP at `https://mcp.manamurah.com/mcp`.
+Pick the block for your client:
+
+### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`
 on macOS (or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
@@ -29,26 +34,86 @@ on macOS (or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 }
 ```
 
-Restart Claude Desktop. You should see the 10 tools listed under
-the 🔌 icon. Ask something like *"harga tembikai di Selangor?"* or
-*"what's the cheapest chicken in KL this week?"* — the LLM will
-chain `search_items` → `find_cheapest` automatically.
+Claude Desktop only speaks stdio, so the [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
+shim is the bridge. Restart the app — you'll see the 10 tools under
+the 🔌 icon. Ask *"harga tembikai di Selangor?"* or *"what's the
+cheapest chicken in KL this week?"* and Claude will chain
+`search_items` → `find_cheapest` automatically.
 
-## Install — Claude Code / other MCP clients
+### Claude Code (CLI)
 
-Any client that supports remote MCP (JSON-RPC over HTTP POST):
+One command, native streamable HTTP — no shim:
 
 ```bash
-# One-shot tool listing:
-curl -sS -X POST https://mcp.manamurah.com/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq .
+claude mcp add manamurah --transport http https://mcp.manamurah.com/mcp
 ```
 
-Clients that speak native remote MCP can point directly at
-`https://mcp.manamurah.com/mcp`. Clients that only speak stdio
-(e.g. older MCP tooling) can use [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
-as a shim.
+Confirm with `claude mcp list`. Tools become available the next time
+you start a Claude Code session. Add `--scope user` to make it
+available across every project.
+
+### Cursor
+
+User-level (every project): create or edit `~/.cursor/mcp.json`.
+Project-level: `<project-root>/.cursor/mcp.json`.
+
+```json
+{
+  "mcpServers": {
+    "manamurah": {
+      "url": "https://mcp.manamurah.com/mcp"
+    }
+  }
+}
+```
+
+Cursor 0.46+ supports remote MCP via `url` directly. Reload the
+window (`Cmd-Shift-P` → *Developer: Reload Window*) and the
+`manamurah` row appears under Settings → MCP with all 10 tools
+listed.
+
+### Cline (VS Code extension)
+
+Open Cline's sidebar → ⚙️ → **MCP Servers** → **Add Server** →
+select **Remote** → paste `https://mcp.manamurah.com/mcp` → name it
+`manamurah`. Cline writes the config to its VS Code global storage
+itself; no JSON editing needed.
+
+For headless setup, the same JSON shape Claude Desktop uses also
+works in Cline's `cline_mcp_settings.json`.
+
+### ChatGPT (Custom Connectors)
+
+For ChatGPT Pro / Team / Enterprise: **chatgpt.com/connectors** →
+**Add custom connector** → MCP server URL
+`https://mcp.manamurah.com/mcp` → no auth required (public read-only).
+After approval the connector shows up in the message-input ⊕ menu.
+
+For OpenAI Apps SDK / programmatic use (the `codex_apps.manamurah_*`
+tool family in Codex): the server URL field in the app manifest at
+**platform.openai.com/apps** must be exactly
+`https://mcp.manamurah.com/mcp` — *not* `https://manamurah.com` (which
+will fail the streamable transport probe with HTTP 403, since that's
+the consumer site, not an MCP endpoint).
+
+### Other MCP clients
+
+Any client that supports streamable-HTTP MCP transport points
+directly at `https://mcp.manamurah.com/mcp`. Stdio-only clients shim
+via [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) using
+the same recipe as Claude Desktop above.
+
+Quick smoke test from any shell:
+
+```bash
+curl -sS -X POST https://mcp.manamurah.com/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
+```
+
+You should see ten tool names. The richer
+[self-describing manifest](https://mcp.manamurah.com/) (full input
+schemas + versioning policy) is also a single GET away.
 
 ## Tools
 
