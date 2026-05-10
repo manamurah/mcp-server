@@ -14,6 +14,37 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.5.0] — 2026-05-11
+
+### Added
+
+- **\`region_gap\` tool.** New top-level tool that ranks items by
+  Semenanjung-vs-Borneo regional price gap in either direction.
+  Returns up to \`limit\` \`borneo_pricier\` rows (positive
+  \`gap_pct\`) and up to \`limit\` \`semenanjung_pricier\` rows
+  (negative \`gap_pct\`) in a single round-trip, built on the existing
+  region monthly/weekly rollup. Tunable inputs: \`category\`
+  (item_category filter), \`period\` (\`'weekly'\` or \`'monthly'\`,
+  default monthly), \`weekdate\` / \`month\` to pin a specific period,
+  \`limit\` (1–20, default 10), and \`min_pct\` (default 1.0) to ignore
+  parity-grade noise.
+- **Use case.** The \`/manamurah-weekly-recap\` pipeline can now
+  surface newsworthy regional disparities ("which items are notably
+  more expensive in Borneo this month?") in one call instead of
+  double-querying \`scope='region'\` with \`scope_value='semenanjung'\`
+  and \`scope_value='borneo'\` and diffing client-side.
+
+### Notes
+
+- **Upstream contract** is defined by the SK MR
+  [agagroup/apps/manamurah_20240322!6](https://gitlab.com/agagroup/apps/manamurah_20240322/-/merge_requests/6)
+  — this Worker just advertises the schema; the SK API enforces it.
+
+### Changed
+
+- \`serverInfo.version\` returned by \`initialize\` is now \`2.5.0\`.
+- Tool count on \`GET /\` and the MCP Server Card is now 11 (was 10).
+
 ## [2.4.0] — 2026-05-08
 
 ### Added

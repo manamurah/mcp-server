@@ -1,7 +1,7 @@
 /**
  * ManaMurah MCP Server — Cloudflare Workers
  *
- * A remote MCP (Model Context Protocol) server that exposes 10
+ * A remote MCP (Model Context Protocol) server that exposes 11
  * strongly-typed tools for Malaysian PriceCatcher consumer price data.
  *
  * Architecture: this Worker is a thin JSON-RPC shim over the public
@@ -69,7 +69,7 @@ import { CHANGELOG_MARKDOWN } from './changelog.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.4.0';
+const SERVER_VERSION = '2.5.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -379,6 +379,52 @@ const TOOLS: MCPTool[] = [
 			additionalProperties: false,
 		},
 	},
+	{
+		name: 'region_gap',
+		description:
+			"Rank items by Semenanjung vs Borneo regional price gap. Returns top N items where Borneo is pricier (positive gap) and top N where Semenanjung is pricier (negative gap), in one round-trip. Built on the region monthly/weekly rollup. Use for surfacing regional disparities ('what items are notably more expensive in Borneo this month?') without double-querying scope='region' and diffing client-side. Tunable: `category` filter, `period` (monthly default), `limit`, `min_pct` to ignore parity-grade gaps.",
+		inputSchema: {
+			type: 'object',
+			properties: {
+				category: {
+					type: 'string',
+					maxLength: 64,
+					description:
+						"Optional item_category filter. Examples: 'BUAH-BUAHAN', 'SAYUR-SAYURAN', 'DAGING', 'IKAN-IKAN'. Case-sensitive.",
+				},
+				period: {
+					type: 'string',
+					enum: ['weekly', 'monthly'],
+					description:
+						"Rollup grain. 'monthly' (default) resolves on the latest available month; 'weekly' on the latest ISO Monday week.",
+				},
+				weekdate: {
+					type: 'string',
+					description:
+						"Weekly mode only. ISO Monday in YYYY-MM-DD form, e.g. '2026-04-20'. Defaults to latest available when omitted.",
+				},
+				month: {
+					type: 'string',
+					description:
+						"Monthly mode only. YYYY-MM, e.g. '2026-04'. Defaults to latest available when omitted.",
+				},
+				limit: {
+					type: 'integer',
+					minimum: 1,
+					maximum: 20,
+					description:
+						'Items per direction (default 10). Returns up to `limit` borneo_pricier rows and up to `limit` semenanjung_pricier rows.',
+				},
+				min_pct: {
+					type: 'number',
+					minimum: 0,
+					description:
+						'Minimum |gap_pct| (in percent) for an item to qualify. Default 1.0 — items within ±1% are treated as parity and excluded.',
+				},
+			},
+			additionalProperties: false,
+		},
+	},
 ];
 
 // basket_watch is POST (JSON body of item_codes); every other tool is GET.
@@ -624,7 +670,7 @@ export default {
 				version: SERVER_VERSION,
 				title: 'ManaMurah MCP Server',
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data — 10 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, more) sourced from data.gov.my PriceCatcher.',
+					'MCP server for Malaysian PriceCatcher consumer price data — 11 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, region gap ranker, more) sourced from data.gov.my PriceCatcher.',
 				websiteUrl: 'https://mcp.manamurah.com/',
 				repository: {
 					url: 'https://github.com/manamurah/mcp-server',
@@ -667,7 +713,7 @@ export default {
 				name: SERVER_PACKAGE_NAME,
 				version: SERVER_VERSION,
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data. 10 strongly-typed tools proxied from manamurah.com.',
+					'MCP server for Malaysian PriceCatcher consumer price data. 11 strongly-typed tools proxied from manamurah.com.',
 				publisher: 'manamurah.com',
 				license: 'MIT',
 
