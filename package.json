@@ -1,10 +1,11 @@
 {
 	"name": "manamurah-mcp-server",
 	"version": "2.6.0",
-	"description": "Remote MCP (Model Context Protocol) server for Malaysian PriceCatcher consumer price data — 11 strongly-typed tools for AI agents, deployed on Cloudflare Workers.",
+	"description": "Remote MCP (Model Context Protocol) server for Malaysian PriceCatcher consumer price data — 14 strongly-typed tools for AI agents, deployed on Cloudflare Workers.",
 	"main": "src/index.ts",
 	"scripts": {
 		"dev": "wrangler dev",
+		"build": "tsc --noEmit",
 		"deploy": "wrangler deploy",
 		"type-check": "tsc --noEmit"
 	},
