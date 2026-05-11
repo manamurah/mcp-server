@@ -2,7 +2,7 @@
 
 Remote [Model Context Protocol](https://modelcontextprotocol.io) (MCP)
 server for Malaysian PriceCatcher consumer price data. Deployed on
-Cloudflare Workers. 10 strongly-typed tools for AI agents.
+Cloudflare Workers. 14 strongly-typed tools for AI agents.
 
 **Live endpoint:** `https://mcp.manamurah.com/mcp` (POST, JSON-RPC 2.0)
 
@@ -35,7 +35,7 @@ on macOS (or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 ```
 
 Claude Desktop only speaks stdio, so the [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
-shim is the bridge. Restart the app — you'll see the 10 tools under
+shim is the bridge. Restart the app — you'll see the 14 tools under
 the 🔌 icon. Ask *"harga tembikai di Selangor?"* or *"what's the
 cheapest chicken in KL this week?"* and Claude will chain
 `search_items` → `find_cheapest` automatically.
@@ -69,7 +69,7 @@ Project-level: `<project-root>/.cursor/mcp.json`.
 
 Cursor 0.46+ supports remote MCP via `url` directly. Reload the
 window (`Cmd-Shift-P` → *Developer: Reload Window*) and the
-`manamurah` row appears under Settings → MCP with all 10 tools
+`manamurah` row appears under Settings → MCP with all 14 tools
 listed.
 
 ### Cline (VS Code extension)
@@ -117,7 +117,7 @@ schemas + versioning policy) is also a single GET away.
 
 ## Tools
 
-All 10 tools are read-only, public, and capped on response size to
+All 14 tools are read-only, public, and capped on response size to
 keep LLM contexts compact. Every tool carries a detailed description
 + JSON-Schema input so the LLM picks the right one without guessing.
 
@@ -133,6 +133,10 @@ keep LLM contexts compact. Every tool carries a detailed description
 | `top_movers`        | Biggest weekly risers + fallers                            |
 | `category_trends`   | Per-category movement over a window                        |
 | `basket_watch`      | Total cost for a 1–20 item basket over time                |
+| `region_gap`        | Semenanjung vs Borneo top-N price gap, both directions     |
+| `fama_price_history`| Daily FAMA series — RUNCIT / BORONG / LADANG × geo grain   |
+| `fama_margin`       | Ladang → borong → runcit value-chain spread per day        |
+| `fama_top_movers`   | Daily movers per FAMA level, anchored on latest index date |
 
 All tools require zero setup beyond the MCP config above. No API
 keys. No rate limiting on the client side (upstream has a 12h KV
@@ -258,7 +262,7 @@ MANAMURAH_API_BASE = "https://staging.manamurah.com"
 ## Related
 
 - **[manamurah-mcp-2026](https://gitlab.com/agagroup/data/manamurah-mcp-2026)**
-  — Python stdio MCP server covering the same 10 tools. Use this
+  — Python stdio MCP server covering the same 14 tools. Use this
   instead if you want a local-only MCP binary (no Cloudflare, no
   Worker hop).
 - **[manamurah_20240322](https://gitlab.com/agagroup/apps/manamurah_20240322)**
