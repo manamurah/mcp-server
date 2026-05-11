@@ -6,6 +6,49 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.6.0] — 2026-05-11
+
+### Added
+
+- **`fama_price_history` tool.** Daily FAMA price time series for one
+  item at a chosen level (`RUNCIT` retail, `BORONG` wholesale, `LADANG`
+  farm-gate) and grain (`national`, `state`, `daerah`). Returns up to
+  90 days oldest-first; missing days are listed in `missing_dates`
+  rather than zero-filled. FAMA's catalogue is independent of
+  PriceCatcher — `item_id` here is FAMA's own 1..46.
+- **`fama_margin` tool.** Pivots FAMA's three price levels for one
+  item into per-day rows with all three prices side-by-side and the
+  inter-leg markup percentages already computed
+  (`ladang_to_borong_pct`, `borong_to_runcit_pct`,
+  `ladang_to_runcit_pct`). The unique value FAMA enables over weekly
+  KPDN — answering "where in the value chain did the price move?".
+  `grain='daerah'` intentionally unsupported (sparse LADANG/BORONG
+  coverage at daerah grain).
+- **`fama_top_movers` tool.** Daily-cadence movers per FAMA price
+  level. Anchored on the latest available index date (not "today")
+  because FAMA's publishing lag puts the most-recent 2-4 days
+  frequently unpublished; `days_actual` echoes the realised gap.
+  Same `daerah`-exclusion as `fama_margin`.
+- **Use case.** Editorial skills (`manamurah-weekly-recap`,
+  `manamurah-watch-daily`, `manamurah-price-analysis`) can now ask
+  "did this retail spike come from rising farm-gate or expanding
+  retail markup?" without leaving the MCP surface.
+
+### Notes
+
+- **Data source.** `manamurah_fama_prices_daily` ES index, populated
+  daily at 10:00 from FAMA's "Panduan Harga Harian" Power BI report by
+  manamurah-data-2026. The crawler's trailing window was widened from
+  8d to 14d in the same release cycle to catch FAMA's ~1-week backfill.
+- **Upstream contract** is the SK API at
+  `https://manamurah.com/api/v2/mcp/fama_{price_history,margin,top_movers}`
+  — this Worker just advertises the schema; the SK API enforces it.
+
+### Changed
+
+- `serverInfo.version` returned by `initialize` is now `2.6.0`.
+- Tool count on `GET /` and the MCP Server Card is now 14 (was 11).
+
 ## [2.5.0] — 2026-05-11
 
 ### Added

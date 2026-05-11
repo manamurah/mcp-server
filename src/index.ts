@@ -69,7 +69,7 @@ import { CHANGELOG_MARKDOWN } from './changelog.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.5.0';
+const SERVER_VERSION = '2.6.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -120,6 +120,13 @@ const MONTHS_WINDOW = [1, 3, 6, 12] as const;
 
 const STATES_HINT =
 	"Malaysian state or federal territory, e.g. 'Selangor', 'W.P. Kuala Lumpur', 'Pulau Pinang'. Case-sensitive.";
+
+// FAMA-specific enums. The catalogue is independent of KPDN/PriceCatcher —
+// items are FAMA's own 1..46 ids and three price levels are tracked daily
+// and independently. See manamurah-data-2026 `manamurah_etl/fama/`.
+const FAMA_LEVELS = ['RUNCIT', 'BORONG', 'LADANG'] as const;
+const FAMA_GRAINS_FULL = ['national', 'state', 'daerah'] as const;
+const FAMA_GRAINS_NO_DAERAH = ['national', 'state'] as const;
 
 // ---------------------------------------------------------------------
 // Tool catalogue — mirrors manamurah-mcp-2026's Pydantic models
@@ -422,6 +429,139 @@ const TOOLS: MCPTool[] = [
 						'Minimum |gap_pct| (in percent) for an item to qualify. Default 1.0 — items within ±1% are treated as parity and excluded.',
 				},
 			},
+			additionalProperties: false,
+		},
+	},
+	// --- FAMA daily prices (independent catalogue from PriceCatcher) ---
+	// Backed by the manamurah_fama_prices_daily ES index, populated daily
+	// at 10:00 from FAMA's "Panduan Harga Harian" Power BI report. Three
+	// price levels (RUNCIT/BORONG/LADANG) tracked independently — the
+	// three-tier view is the analytical edge over weekly KPDN.
+	{
+		name: 'fama_price_history',
+		description:
+			"Daily FAMA price time series for one item at a chosen price level (RUNCIT retail / BORONG wholesale / LADANG farm-gate) and geographic grain. FAMA is a separate catalogue from PriceCatcher — item_id here is FAMA's own 1..46 (not KPDN item_code). Common items: 13=AYAM PROSES STANDARD, 22=AYAM HIDUP, 46=TELUR AYAM, 31=TIMUN HIJAU, 10=KACANG PANJANG HIJAU, 44=BAYAM. Returns up to 90 days oldest-first; missing days (FAMA's publishing lag often hides the last 1–3 days) are listed in missing_dates rather than zero-filled. Do not use for KPDN items (use price_history) or for value-chain spread (use fama_margin).",
+		inputSchema: {
+			type: 'object',
+			properties: {
+				item_id: {
+					type: 'integer',
+					minimum: 1,
+					description: "FAMA item.id (1..46). Not the PriceCatcher item_code.",
+				},
+				level: {
+					type: 'string',
+					enum: FAMA_LEVELS,
+					description:
+						"Price level: RUNCIT (retail), BORONG (wholesale), or LADANG (farm-gate).",
+				},
+				grain: {
+					type: 'string',
+					enum: FAMA_GRAINS_FULL,
+					description:
+						"Geographic rollup. 'national' (default) for a single aggregate per day; 'state' for one of 16 states; 'daerah' for a specific district (sparse coverage).",
+				},
+				state_slug: {
+					type: 'string',
+					maxLength: 32,
+					description:
+						"Required when grain='state' or 'daerah'. Lowercase FAMA state slug (e.g. 'johor', 'selangor', 'pulau-pinang').",
+				},
+				daerah_slug: {
+					type: 'string',
+					maxLength: 64,
+					description:
+						"Required when grain='daerah'. Lowercase FAMA daerah slug scoped within the chosen state (e.g. 'johor-bahru').",
+				},
+				days: {
+					type: 'integer',
+					minimum: 1,
+					maximum: 90,
+					description:
+						'Trailing window in days (1-90, default 30).',
+				},
+			},
+			required: ['item_id', 'level'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'fama_margin',
+		description:
+			"Pivot FAMA's three price levels for one item into per-day rows with all three prices side-by-side and the inter-leg markup percentages already computed (ladang_to_borong_pct, borong_to_runcit_pct, ladang_to_runcit_pct). The unique value FAMA enables over weekly KPDN — answering 'where in the value chain did the price move?'. Spread fields are null on days a leg is missing; the coverage block (ladang_days/borong_days/runcit_days/full_chain_days) tells you how reliable the analysis is — a near-zero full_chain_days means the item lacks farm-gate coverage. grain='daerah' is intentionally unsupported because LADANG/BORONG coverage at daerah grain is too sparse. Use fama_price_history if you only need one level.",
+		inputSchema: {
+			type: 'object',
+			properties: {
+				item_id: {
+					type: 'integer',
+					minimum: 1,
+					description: "FAMA item.id (1..46). Items with all-three-level coverage include 22=AYAM HIDUP, 13=AYAM PROSES STANDARD, 46=TELUR AYAM, and the leafy vegetables.",
+				},
+				grain: {
+					type: 'string',
+					enum: FAMA_GRAINS_NO_DAERAH,
+					description: "Geographic rollup. 'national' (default) or 'state'.",
+				},
+				state_slug: {
+					type: 'string',
+					maxLength: 32,
+					description: "Required when grain='state'. Lowercase FAMA state slug.",
+				},
+				days: {
+					type: 'integer',
+					minimum: 1,
+					maximum: 90,
+					description: 'Trailing window in days (1-90, default 14).',
+				},
+			},
+			required: ['item_id'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'fama_top_movers',
+		description:
+			"Daily-cadence movers per FAMA price level — daily counterpart to top_movers, separable by level so callers can ask 'what jumped at the farm-gate' (level='LADANG') distinctly from 'what jumped at retail' (level='RUNCIT'). The comparison is anchored on the latest available date in the index (often 2-4 days behind today due to FAMA's publishing lag), not on today; days_actual echoes the realised gap. Items lacking either anchor or comparison observation are excluded — no zero-fill. LADANG coverage is the patchiest — expect shorter lists at level='LADANG' even with min_pct lowered. grain='daerah' is unsupported (sparse coverage).",
+		inputSchema: {
+			type: 'object',
+			properties: {
+				level: {
+					type: 'string',
+					enum: FAMA_LEVELS,
+					description:
+						"Price level to rank. RUNCIT and BORONG have the densest coverage; LADANG is usable but may return shorter lists.",
+				},
+				grain: {
+					type: 'string',
+					enum: FAMA_GRAINS_NO_DAERAH,
+					description: "'national' (default) or 'state'.",
+				},
+				state_slug: {
+					type: 'string',
+					maxLength: 32,
+					description: "Required when grain='state'.",
+				},
+				days: {
+					type: 'integer',
+					minimum: 1,
+					maximum: 30,
+					description:
+						'Lookback distance from the anchor date (1-30, default 7). Anchor is the latest available index date, not today.',
+				},
+				limit: {
+					type: 'integer',
+					minimum: 1,
+					maximum: 25,
+					description: 'How many items per direction (1-25, default 10).',
+				},
+				min_pct: {
+					type: 'number',
+					minimum: 0,
+					description:
+						'Minimum |pct_change| required for an item to qualify (default 1.0). Raise to filter to headline-grade moves only.',
+				},
+			},
+			required: ['level'],
 			additionalProperties: false,
 		},
 	},
