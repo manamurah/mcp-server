@@ -111,7 +111,9 @@ curl -sS -X POST https://mcp.manamurah.com/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
 ```
 
-You should see ten tool names. The richer
+You should see fourteen tool names — eleven KPDN PriceCatcher tools
+(weekly cadence) plus three FAMA Panduan Harga Harian tools (daily
+cadence, three price levels). The richer
 [self-describing manifest](https://mcp.manamurah.com/) (full input
 schemas + versioning policy) is also a single GET away.
 
@@ -120,6 +122,11 @@ schemas + versioning policy) is also a single GET away.
 All 14 tools are read-only, public, and capped on response size to
 keep LLM contexts compact. Every tool carries a detailed description
 + JSON-Schema input so the LLM picks the right one without guessing.
+
+### KPDN PriceCatcher (weekly)
+
+Retail prices only. ~3,800 premises × ~756 items, refreshed weekly
+from the [data.gov.my PriceCatcher dataset](https://data.gov.my).
 
 | Tool                | Purpose                                                    |
 | ------------------- | ---------------------------------------------------------- |
@@ -134,9 +141,24 @@ keep LLM contexts compact. Every tool carries a detailed description
 | `category_trends`   | Per-category movement over a window                        |
 | `basket_watch`      | Total cost for a 1–20 item basket over time                |
 | `region_gap`        | Semenanjung vs Borneo top-N price gap, both directions     |
-| `fama_price_history`| Daily FAMA series — RUNCIT / BORONG / LADANG × geo grain   |
-| `fama_margin`       | Ladang → borong → runcit value-chain spread per day        |
-| `fama_top_movers`   | Daily movers per FAMA level, anchored on latest index date |
+
+### FAMA daily prices (Panduan Harga Harian)
+
+Three price levels — **RUNCIT** (retail), **BORONG** (wholesale),
+**LADANG** (farm-gate) — tracked daily and independently. ~46 items
+(fresh produce, eggs, poultry). FAMA's catalogue is independent of
+PriceCatcher: `item_id` here is FAMA's own 1..46, not the KPDN
+`item_code`.
+
+| Tool                | Purpose                                                    |
+| ------------------- | ---------------------------------------------------------- |
+| `fama_price_history`| Daily series for one item at chosen level + geographic grain |
+| `fama_margin`       | LADANG → BORONG → RUNCIT value-chain spread per day        |
+| `fama_top_movers`   | Daily movers per level, anchored on latest index date      |
+
+`fama_margin` and `fama_top_movers` reject `grain='daerah'` because
+LADANG/BORONG coverage at daerah grain is too sparse for an honest
+cut. `fama_price_history` accepts daerah for retail-only callers.
 
 All tools require zero setup beyond the MCP config above. No API
 keys. No rate limiting on the client side (upstream has a 12h KV
