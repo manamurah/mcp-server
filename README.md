@@ -8,8 +8,8 @@ Cloudflare Workers. 14 strongly-typed tools for AI agents.
 
 **Data source:** [data.gov.my](https://data.gov.my) PriceCatcher —
 ~3,800 premises × ~756 items across all 16 Malaysian states/territories,
-refreshed weekly. 100% public government data. No credentials needed
-anywhere in the stack.
+collected daily and published as weekly averages. 100% public government
+data. No credentials needed anywhere in the stack.
 
 ---
 
@@ -123,10 +123,11 @@ All 14 tools are read-only, public, and capped on response size to
 keep LLM contexts compact. Every tool carries a detailed description
 + JSON-Schema input so the LLM picks the right one without guessing.
 
-### KPDN PriceCatcher (weekly)
+### KPDN PriceCatcher (weekly averages)
 
-Retail prices only. ~3,800 premises × ~756 items, refreshed weekly
-from the [data.gov.my PriceCatcher dataset](https://data.gov.my).
+Retail prices only. ~3,800 premises × ~756 items, collected daily and
+published as weekly averages from the
+[data.gov.my PriceCatcher dataset](https://data.gov.my).
 
 | Tool                | Purpose                                                    |
 | ------------------- | ---------------------------------------------------------- |

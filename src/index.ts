@@ -13,7 +13,8 @@
  *   - Per-request isolation (no shared state between calls)
  *
  * Data: data.gov.my PriceCatcher — ~3,800 premises × ~756 items,
- * refreshed weekly. 100% public government data.
+ * collected daily and published as weekly averages. 100% public
+ * government data.
  */
 
 // ---------------------------------------------------------------------
