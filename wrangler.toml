@@ -16,6 +16,15 @@ MANAMURAH_API_BASE = "https://manamurah.com"
 pattern = "mcp.manamurah.com"
 custom_domain = true
 
+# Workers Analytics Engine — MCP protocol-boundary usage telemetry.
+# One 100%-sampled datapoint per JSON-RPC request (initialize / tools/list /
+# tools/call). Schema is documented in src/analytics.ts. The dataset is
+# created implicitly on first write. No tool arguments or response payloads
+# are ever recorded — tool name, outcome, latency, client + UA only.
+[[analytics_engine_datasets]]
+binding = "WAE"
+dataset = "manamurah_mcp"
+
 # Environment variants (inherit [vars] unless overridden).
 [env.staging]
 name = "manamurah-mcp-server-staging"

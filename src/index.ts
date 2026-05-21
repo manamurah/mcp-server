@@ -60,6 +60,7 @@ interface MCPResponse {
 }
 
 import { CHANGELOG_MARKDOWN } from './changelog.js';
+import { recordMcp, type CallMeta } from './analytics.js';
 
 // ---------------------------------------------------------------------
 // Server identity — single source of truth for serverInfo.version,
@@ -89,6 +90,8 @@ const ROOT_VERSIONING = {
 interface Env {
 	/** Base URL for the proxy surface. Default: https://manamurah.com */
 	MANAMURAH_API_BASE?: string;
+	/** Analytics Engine dataset (manamurah_mcp) for usage telemetry. */
+	WAE?: AnalyticsEngineDataset;
 }
 
 // ---------------------------------------------------------------------
@@ -577,7 +580,8 @@ const POST_TOOLS = new Set(['basket_watch']);
 async function callUpstream(
 	baseUrl: string,
 	toolName: string,
-	args: Record<string, unknown>
+	args: Record<string, unknown>,
+	meta?: CallMeta
 ): Promise<unknown> {
 	const path = `/api/v2/mcp/${toolName}`;
 
@@ -605,6 +609,7 @@ async function callUpstream(
 	}
 
 	const resp = await fetch(url, init);
+	if (meta) meta.backendStatus = resp.status;
 	if (!resp.ok && resp.status >= 500) {
 		throw new Error(`Upstream ${resp.status}: ${await resp.text()}`);
 	}
@@ -635,7 +640,8 @@ function handleToolsList(request: MCPRequest): MCPResponse {
 
 async function handleToolCall(
 	request: MCPRequest,
-	baseUrl: string
+	baseUrl: string,
+	meta?: CallMeta
 ): Promise<MCPResponse> {
 	const params = (request.params ?? {}) as {
 		name?: string;
@@ -643,6 +649,7 @@ async function handleToolCall(
 	};
 	const name = params.name;
 	const args = params.arguments ?? {};
+	if (meta && name) meta.tool = name;
 
 	if (!name) {
 		return {
@@ -660,7 +667,7 @@ async function handleToolCall(
 	}
 
 	try {
-		const data = await callUpstream(baseUrl, name, args);
+		const data = await callUpstream(baseUrl, name, args, meta);
 		return {
 			jsonrpc: '2.0',
 			id: request.id,
@@ -686,7 +693,8 @@ async function handleToolCall(
 
 async function handleMCP(
 	request: MCPRequest,
-	baseUrl: string
+	baseUrl: string,
+	meta?: CallMeta
 ): Promise<MCPResponse> {
 	try {
 		switch (request.method) {
@@ -695,7 +703,7 @@ async function handleMCP(
 			case 'tools/list':
 				return handleToolsList(request);
 			case 'tools/call':
-				return await handleToolCall(request, baseUrl);
+				return await handleToolCall(request, baseUrl, meta);
 			case 'prompts/list':
 				return { jsonrpc: '2.0', id: request.id, result: { prompts: [] } };
 			case 'resources/list':
@@ -757,10 +765,18 @@ export default {
 					headers: CORS_HEADERS,
 				});
 			}
+			const userAgent = request.headers.get('user-agent');
 			let body: MCPRequest;
 			try {
 				body = (await request.json()) as MCPRequest;
 			} catch (err) {
+				recordMcp(env.WAE, {
+					method: '<parse_error>',
+					ok: false,
+					errorCode: -32700,
+					userAgent,
+					latencyMs: 0,
+				});
 				return jsonResponse(
 					{
 						jsonrpc: '2.0',
@@ -774,7 +790,31 @@ export default {
 					400
 				);
 			}
-			const response = await handleMCP(body, baseUrl);
+			const meta: CallMeta = {};
+			const startedAt = Date.now();
+			const response = await handleMCP(body, baseUrl, meta);
+			// clientInfo is only present on the `initialize` request; for
+			// every other method it stays '-' (the per-call client signal
+			// is the User-Agent, captured on all requests).
+			const clientInfo =
+				body?.method === 'initialize'
+					? (
+							body?.params as
+								| { clientInfo?: { name?: string; version?: string } }
+								| undefined
+						)?.clientInfo
+					: undefined;
+			recordMcp(env.WAE, {
+				method: body?.method,
+				tool: meta.tool,
+				ok: !response.error,
+				errorCode: response.error?.code,
+				backendStatus: meta.backendStatus,
+				clientName: clientInfo?.name,
+				clientVersion: clientInfo?.version,
+				userAgent,
+				latencyMs: Date.now() - startedAt,
+			});
 			return jsonResponse(response);
 		}
 
