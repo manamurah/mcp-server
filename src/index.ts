@@ -793,6 +793,26 @@ export default {
 			}
 			const meta: CallMeta = {};
 			const startedAt = Date.now();
+
+			// JSON-RPC notifications (no `id`, e.g. `notifications/initialized`
+			// that clients send right after `initialize`) expect no response.
+			// Ack with 202 and record as ok instead of running the method
+			// switch, which would 404 them as `method_not_found` and inflate
+			// the error count.
+			const isNotification =
+				(typeof body?.method === 'string' && body.method.startsWith('notifications/')) ||
+				body?.id === undefined ||
+				body?.id === null;
+			if (isNotification) {
+				recordMcp(env.WAE, {
+					method: body?.method ?? '-',
+					ok: true,
+					userAgent,
+					latencyMs: Date.now() - startedAt
+				});
+				return new Response(null, { status: 202, headers: CORS_HEADERS });
+			}
+
 			const response = await handleMCP(body, baseUrl, meta);
 			// clientInfo is only present on the `initialize` request; for
 			// every other method it stays '-' (the per-call client signal
