@@ -1,57 +1,68 @@
 # Spec: MCP Resources for manamurah MCP server
 
-**Status:** Draft spec — not yet implemented. Implements Tier-1 item #1 of
-[`2026-05-22-mcp-enhancement-proposals.md`](./2026-05-22-mcp-enhancement-proposals.md).
-**Created:** 2026-05-22
+**Status:** Reviewed & revised (v2, 2026-05-22) — incorporates the 7-persona review in
+[`reviews/2026-05-22-MCP1-FEATURES/`](./reviews/2026-05-22-MCP1-FEATURES/) (see
+[`CONSOLIDATION.md`](./reviews/2026-05-22-MCP1-FEATURES/CONSOLIDATION.md)). Not yet implemented.
+Implements Tier-1 item #1 of [`2026-05-22-mcp-enhancement-proposals.md`](./2026-05-22-mcp-enhancement-proposals.md).
+**Created:** 2026-05-22 · **Revised:** 2026-05-22 (post-review)
 **Target server:** `manamurah-mcp-server` (this repo) — TS Cloudflare Worker, `src/index.ts`.
 **Server version impact:** minor bump `2.6.0 → 2.7.0` (additive; new capability, no breaking change).
-**Protocol version:** `2024-11-05` (Resources are supported; unchanged).
+**Protocol version:** `2024-11-05` (Resources supported; unchanged).
+
+> **Review outcome:** ship v1 with **fixed resources only** (item template deferred to
+> v2). Four changes are mandatory before merge — table-driven allowlist dispatch,
+> edge-caching, TypeScript interfaces, and literal `resources/list` copy. No reviewer
+> found a Critical issue; architecture rates the design Low risk.
 
 ## 1. Goal
 
-Expose stable **reference data** as MCP Resources so a Host can load it as
-context without spending a tool call. Whitepaper rationale: Resources are
-"contextual data accessed by the Host"; "use external systems for data storage"
-rather than pushing bulk reference data through tools. Concretely this kills the
-recurring `search_items → item_code → real tool` round-trip and gives any agent
-the catalogue, geography, chain list, data freshness, and methodology up front.
+Expose stable **reference data** as MCP Resources so a Host loads it as context
+without spending a tool call. Whitepaper rationale: Resources are "contextual
+data accessed by the Host"; "use external systems for data storage" over pushing
+bulk reference data through tools. Concretely this kills the recurring
+`search_items → item_code → real tool` round-trip and hands an agent the
+catalogue, geography, chains, data freshness, and methodology up front.
 
 ### Non-goals (deliberate)
 
-- **No subscriptions / `listChanged` notifications.** The Worker is stateless and
-  reference data changes only on the weekly ETL. Clients re-read; we rely on the
-  upstream 12h KV cache. (Whitepaper warns stateful persistent connections add
-  architectural cost.) Capability advertised as `{ listChanged: false }`.
-- **No query results as resources.** Price history / cheapest / movers stay as
-  **tools** (they are actions/queries, not contextual reference data). Only stable
-  reference data and docs become resources. This keeps the tool/resource split
-  clean per the whitepaper.
+- **No subscriptions / `listChanged`.** The Worker is stateless; reference data
+  changes only on the weekly ETL. Clients re-read. Capability advertised as
+  `{ listChanged: false }`. (Whitepaper warns stateful connections add cost; if
+  ever wanted, Durable Objects are the mechanism — not in scope.)
+- **No query results as resources.** Price history / cheapest / movers stay
+  **tools** (verbs). Only the unparameterised reference sets + docs become
+  resources (nouns). See the **noun/verb principle** (§7).
+- **No item template in v1.** The `manamurah://item/{item_code}` URI template is
+  **deferred to v2** (§10) — it is the only injection surface and an unbatched
+  N+1; `resources/templates/list` returns `[]` in v1.
 - **No new auth.** Same posture as tools: public, read-only.
 
-## 2. Resource catalogue (proposed)
+## 2. Resource catalogue (v1)
 
-Fixed resources (returned by `resources/list`):
+Six fixed resources returned by `resources/list`. **Literal copy is normative** —
+descriptions must state "no prices", languages carried, and freshness.
 
-| URI | Name | MIME | Source (upstream) | Notes / size |
+| URI | name / title | mimeType | upstreamPath (sole fetch authority) | description (normative) |
 |---|---|---|---|---|
-| `manamurah://catalogue/items` | Item catalogue | `application/json` | `GET /api/v2/mcp/catalogue/items` *(new)* | ~756 items. **Lean fields only:** `item_code, name, name_en, unit, item_category`. Omit zh/ta + aliases to control size (~40–60 KB). Include `weekdate` for freshness. |
-| `manamurah://catalogue/states` | States & federal territories | `application/json` | `GET /api/v2/mcp/catalogue/states` *(new)* | 16 rows: `stateid, name, slug, region`. Tiny. |
-| `manamurah://catalogue/categories` | Item categories | `application/json` | `GET /api/v2/mcp/catalogue/categories` *(new)* | ~40 rows: `category, item_count`. Tiny. |
-| `manamurah://catalogue/chains` | Retail chains | `application/json` | reuse `list_chains` upstream | ~50 rows: `name, premise_count, chain_type, states`. Mirrors the `list_chains` tool output. |
-| `manamurah://meta/latest-week` | Data freshness | `application/json` | `GET /api/v2/mcp/meta/latest-week` *(new)* | `{ latest_weekdate, premises_reporting, items_with_data }`. The canonical freshness signal; lightweight precursor to proposal #4 (coverage). |
-| `manamurah://docs/methodology` | Methodology & caveats | `text/markdown` | `GET /api/v2/mcp/docs/methodology` *(new, or static)* | The `/about` essentials: weekly-average cadence, equal-premise weighting, outlier filtering, sparse-data caveats (n≥30 guidance). Lets any agent cite correct caveats. |
+| `manamurah://catalogue/items` | `items` / "Item catalogue" | `application/json` | `catalogue/items` *(new)* | "All ~756 PriceCatcher items: code, Malay name, unit, category. No prices — use price tools for those. For English/Chinese/Tamil names, call `search_items`." |
+| `manamurah://catalogue/states` | `states` / "States & federal territories" | `application/json` | `catalogue/states` *(new)* | "16 states/FTs with id, name, slug, region (semenanjung/borneo)." |
+| `manamurah://catalogue/categories` | `categories` / "Item categories" | `application/json` | `catalogue/categories` *(new)* | "~40 item categories with item counts. Use as the `category` filter on `search_items`." |
+| `manamurah://catalogue/chains` | `chains` / "Retail chains" | `application/json` | `list_chains` *(reuse)* | "~50 retail chains with premise counts, chain_type, states. The whole-set companion to the `list_chains` tool." |
+| `manamurah://meta/latest-week` | `latest-week` / "Data freshness" | `application/json` | `meta/latest-week` *(new)* | "Current data week + coverage: `latest_weekdate, premises_reporting, items_with_data`. Read this to know how fresh prices are." |
+| `manamurah://docs/methodology` | `methodology` / "Methodology & caveats" | `text/markdown` | *embedded — see §5* | "How prices are computed: weekly-average cadence, equal-premise weighting, outlier filtering, the n≥30 reliability guidance. Cite these caveats when reporting figures." |
 
-### Resource templates (RFC 6570) — `resources/templates/list`
+**`catalogue/items` field set — LEAN, 4 fields (all required):**
+`item_code` (int), `name` (Malay), `unit` (string), `item_category` (string).
+**`name_en` and zh/ta are deliberately excluded** — they triple the standing
+context-token cost (~16 K tokens lean vs ~45 K full) for marginal value, and
+`search_items` already returns all translations on demand. (Review Q2/Q5; the
+single conflict, resolved in CONSOLIDATION.md.) Revisit only if telemetry shows
+English-locale agents repeatedly round-tripping after reading the catalogue.
 
-Optional in v1 (see Open Questions). Candidate:
-
-| URI template | Purpose | Source |
-|---|---|---|
-| `manamurah://item/{item_code}` | Single item "reference card": name, unit, category, latest national avg price, premise count, freshness. | `GET /api/v2/mcp/catalogue/item/{item_code}` *(new)* |
-
-Templates let a Host read one entity as context (`resources/read` with a concrete
-URI) without a query tool. Kept minimal — only the entity card, not history
-(history is a tool).
+**`meta/latest-week` contract is frozen** to those 3 fields. Proposal #4 (the
+coverage tool) MUST reuse the same upstream view rather than duplicate-aggregate;
+do not grow per-item coverage onto this resource (that's what would turn it into
+dead code).
 
 ## 3. Protocol changes (Worker, `src/index.ts`)
 
@@ -62,124 +73,197 @@ URI) without a query tool. Kept minimal — only the entity card, not history
 + capabilities: { tools: {}, prompts: {}, resources: { listChanged: false } }
 ```
 
-### 3.2 New / changed JSON-RPC methods (`handleMCP:701`)
+### 3.2 Table-driven `RESOURCES` (the allowlist is the dispatch table)
 
-- `resources/list` — replace the current empty stub (`:710`) with the fixed
-  catalogue (mirror the `TOOLS`-style static array → new `const RESOURCES`).
-  Each entry: `{ uri, name, title, description, mimeType }`.
-- `resources/read` — **new.** Params `{ uri }`. Steps:
-  1. Look up `uri` in a **fixed allowlist** (the `RESOURCES` array + template
-     matcher). **Never interpolate the raw URI into a fetch** — map allowlisted
-     URI → fixed upstream path. (Security: prevents SSRF / confused-deputy; the
-     whitepaper's strict-allowlist + input-validation guidance.)
-  2. Unknown/again-not-allowlisted URI → JSON-RPC `-32602` with an **actionable**
-     message (e.g. `"Unknown resource <uri>. Call resources/list for the catalogue."`).
-  3. Proxy via the existing `callUpstream` pattern (`:581`).
-  4. Return `{ contents: [{ uri, mimeType, text }] }` (JSON resources: `text` =
-     `JSON.stringify(data)`; methodology: raw markdown).
-- `resources/templates/list` — **new.** Return the URI templates (or `[]` if we
-  defer templates to v2).
+One typed const is the **single source** for `resources/list`, the read
+allowlist, AND the upstream-path map. The upstream path is **never** derived from
+the inbound URI (SSRF / confused-deputy guard — Security SEC-1/SEC-2 + Arch #2).
 
-### 3.3 Telemetry (`src/analytics.ts`, `CallMeta`)
-
-- Add an optional `resource` field to `CallMeta` (the resolved resource name or
-  template id), analogous to `tool`. Populate in the `resources/read` handler.
-- `recordMcp` already captures `method`; `resources/list` and `resources/read`
-  flow through the same boundary instrumentation at `:828`. No privacy concern —
-  URIs are non-sensitive.
-
-### 3.4 Discovery surfaces
-
-- **Server card** (`:867`) — add a short note in `description` ("…tools + N
-  reference resources") and optionally a `_meta.resource_count`.
-- **Root manifest** (`:911`) — add `resource_count` and a `resources` array
-  mirroring how `tools` is exposed, so registries index resources in one GET.
-- **Changelog** (`src/changelog.ts` + root `CHANGELOG.md`) — add the `2.7.0` entry.
-
-## 4. Content shape (MCP `resources/read` result)
-
-```json
-{
-  "contents": [
-    {
-      "uri": "manamurah://catalogue/states",
-      "mimeType": "application/json",
-      "text": "{\"weekdate\":\"2026-05-18\",\"states\":[{\"stateid\":1,\"name\":\"Johor\",\"slug\":\"johor\",\"region\":\"semenanjung\"}, ...]}"
-    }
-  ]
+```ts
+interface MCPResource {
+  uri: string;            // canonical, what resources/list advertises
+  name: string;
+  title: string;
+  description: string;    // normative copy from §2
+  mimeType: 'application/json' | 'text/markdown';
+  kind: 'upstream' | 'embedded';
+  upstreamPath?: string;  // required when kind==='upstream'; the SOLE fetch path
 }
+const RESOURCES: readonly MCPResource[] = [ /* the six rows from §2 */ ];
+const RESOURCE_BY_URI: Map<string, MCPResource> = new Map(RESOURCES.map(r => [r.uri, r]));
 ```
 
-Every JSON resource payload carries a `weekdate` (or `generated_at`) so clients
-can reason about freshness without reading `meta/latest-week` separately.
+`callUpstream` currently hardcodes `path = /api/v2/mcp/${toolName}` (`:587`) and
+does **no `encodeURIComponent`**. Add an explicit `path` override param (or a thin
+`callUpstreamPath(baseUrl, path, ...)`) so resources can target `catalogue/items`,
+reuse `list_chains`, etc. Tools keep their existing name=path behaviour.
 
-## 5. Upstream work (manamurah.com `/api/v2/mcp/*`)
+### 3.3 New / changed JSON-RPC methods (`handleMCP:701`)
 
-The Worker is a thin proxy; resources need backing endpoints. Audit + build:
+- `resources/list` — replace the empty stub (`:710`) with `RESOURCES` mapped to
+  `{ uri, name, title, description, mimeType }`.
+- `resources/read` — **new.** Params `{ uri }`:
+  1. `const r = RESOURCE_BY_URI.get(uri)` — `Map.get`, not `[]` (see §4 typing).
+  2. Miss → JSON-RPC `-32602`, **actionable**: `"Unknown resource <uri>. Call resources/list for the catalogue."`
+  3. `kind==='embedded'` (methodology) → return the bundled text directly (no fetch).
+  4. `kind==='upstream'` → fetch **`r.upstreamPath`** (never `uri`) via the
+     edge-cached path helper (§6). 5xx → JSON-RPC `-32603`.
+  5. Return `{ contents: [{ uri, mimeType, text }] }`. `text` is **compact**
+     `JSON.stringify(data)` (NOT the pretty `null, 2` tools use at `:678`) for
+     JSON resources; raw markdown for methodology.
+- `resources/templates/list` — **new, returns `[]` in v1** (template deferred, §10).
 
-- **Reuse:** `chains` (existing `list_chains` upstream).
-- **New, thin (ES aggregations / lookups already used by the SvelteKit app):**
-  `catalogue/items`, `catalogue/states`, `catalogue/categories`, `meta/latest-week`,
-  `catalogue/item/{item_code}` (if templates land).
-- **New, static-ish:** `docs/methodology` — could be a static markdown blob
-  (mirror of `/about`) served by the upstream, or embedded in the Worker like
-  `changelog.ts`. Embedding avoids an upstream round-trip; prefer embed if the
-  text is short and stable.
+### 3.4 Telemetry (`src/analytics.ts`)
 
-Each new endpoint must return the standard `{ status, reason, warnings, data }`
-envelope for passthrough consistency.
+- Add an optional `resource` field to `CallMeta` and the WAE point — the resolved
+  resource `name` (or, in v2, the template id — **never a concrete `item_code`**).
+- `resources/list` / `resources/read` already flow through the boundary recorder
+  (`:828`). Keep 100% sampling (volume is trivial). URIs are non-sensitive.
 
-## 6. Size / token discipline
+### 3.5 Discovery surfaces
 
-Whitepaper: "design for concise output." Only `catalogue/items` is sizable.
-Mitigations: lean field set (5 fields), no inline translations beyond `name_en`,
-and an assertion in tests that the serialized items resource stays under a budget
-(target < 80 KB). States/categories/chains are trivially small.
+- **Tool cross-linking (mandatory, UX High):** amend `search_items`,
+  `list_chains`, `compare_prices` descriptions to point at the relevant
+  `manamurah://catalogue/*` resource. Without this, agents won't discover the
+  resources and the round-trip-killing goal fails.
+- **Server card** (`:867`): note "…tools + 6 reference resources" + `_meta.resource_count`.
+- **Root manifest** (`:911`): add `resource_count` + a `resources` array mirroring
+  how `tools` is exposed.
+- **Changelog** (`src/changelog.ts` + `CHANGELOG.md`): add the `2.7.0` entry.
 
-## 7. Testing / eval
+## 4. Required TypeScript (Type-safety High — T1/T2/T3)
 
-Add (this repo currently has no tests):
+The existing code is `strict: true` and `tsc` is clean; keep it that way by
+mandating these (the spec must not introduce an untyped boundary):
 
-- `resources/list` returns the expected URIs + required fields.
-- `resources/read` for each fixed URI returns valid `contents` with correct MIME.
+```ts
+interface ResourceContents { uri: string; mimeType: string; text: string }
+interface ResourceReadParams { uri: string }
+interface CatalogueItem { item_code: number; name: string; unit: string; item_category: string }
+// Generic the upstream boundary instead of returning `unknown` (src/index.ts:586):
+async function callUpstream<T>(/* ... */): Promise<T> { /* ... */ }
+```
+
+- `tsconfig.json:15` has `noUncheckedIndexedAccess: false`. Do **not** index the
+  allowlist or any capture group with bare `[]`; use `Map.get()` / `.find()`
+  (already `T | undefined`) so the miss path is type-forced. (Either keep the flag
+  and follow this rule, or flip it for `src/` — implementer's call, documented.)
+- `CatalogueItem` is the **one** shape shared by the catalogue resource and (later)
+  the item card — divergent field sets are the drift proposal #7 warns about.
+
+## 5. Methodology = embedded, not proxied (Q3, unanimous)
+
+Ship the methodology as `src/methodology.ts` exporting a date-stamped markdown
+const, mirroring `src/changelog.ts`. Zero round-trip, no upstream endpoint, no
+live-tamper window, reviewable at PR time. `resources/read` serves it directly
+(`kind: 'embedded'`). Keep it short and stable; bump its date stamp when edited.
+
+## 6. Caching strategy (CF-infra + Cost — phased)
+
+**Phase 1 (v1, ship now): Cache API at the Worker edge.** Wrap upstream resource
+fetches in `caches.default`, keyed on a **synthetic GET cache-key Request**
+(POST JSON-RPC bodies can't be keyed directly), with the current `weekdate` in the
+key and `Cache-Control: max-age=21600` (6 h). Widen the Worker entrypoint from
+`fetch(request, env)` to `fetch(request, env, ctx)` and use `ctx.waitUntil` for
+the async `cache.put`. Free; eliminates ~99 % of redundant catalogue→ES load.
+Embedded methodology needs no cache.
+
+**Phase 2 (target state; needs an ETL change): catalogues in Workers KV.** ETL
+writes `cat:items|states|categories|chains` + `meta:latest-week` weekly; the
+Worker reads KV instead of proxying the SvelteKit upstream + ES at all. One new KV
+binding. Defer until Phase 1 is proven and the ETL gains a KV-write step.
+
+**Rejected:** D1 (whole-object reads = KV's job), R2 (payloads too small; future
+bulk-export home only), Workers Static Assets (worse than embed/KV here), Durable
+Objects (subscriptions are a non-goal).
+
+## 7. Architecture principles to honour
+
+- **Noun/verb rule (Arch):** a dataset may be exposed as *both* a Resource and a
+  Tool **only** when the Resource is the whole unparameterised reference set (a
+  noun / ambient context) and the Tool is a parameterised query (a verb). This is
+  why `catalogue/chains` (resource) + `list_chains` (tool) is legitimate, and why
+  the item *card* (parameterised) should not also be a standing resource.
+- **Trust assumption (Security SEC-3):** resource content is auto-loaded into agent
+  context, so it is a poisoning surface. Trust chain: ES → SvelteKit upstream →
+  Worker (verbatim passthrough) → client. Risk is low (public gov data, no
+  transformation) but is hereby stated; do not start interpolating untrusted text
+  into resource payloads.
+
+## 8. Content shape (`resources/read` result)
+
+```json
+{ "contents": [ { "uri": "manamurah://catalogue/states",
+  "mimeType": "application/json",
+  "text": "{\"weekdate\":\"2026-05-18\",\"states\":[{\"stateid\":1,\"name\":\"Johor\",\"slug\":\"johor\",\"region\":\"semenanjung\"}]}" } ] }
+```
+
+Every JSON payload carries a top-level `weekdate` (envelope level only — not
+per-row, which would add ~15 KB) so clients reason about freshness without a
+second read.
+
+## 9. Size / token discipline
+
+`catalogue/items` is the only sizable resource. At 4 fields, compact-serialized:
+**≈ 60–65 KB / ~16 K tokens** (vs ~95 KB / ~25 K with `name_en`, ~176 KB full
+multilingual). Others are < 5 KB. **CI gate: `catalogue/items` serialized size
+< 80 KB** (passes comfortably). Whitepaper: "design for concise output."
+
+## 10. Deferred to v2 — item card template
+
+`manamurah://item/{item_code}` (a single item's reference card). Deferred because
+it is the only attacker-influenced input meeting URL construction (Security) and
+an unbatched N+1 (Perf/Cost: ~+$40–80/mo ES tier risk if hammered). **When it
+ships it MUST:**
+
+- Validate the captured `{item_code}` with a strict contract: extract → match
+  `^[0-9]{1,7}$` → coerce to number → map to a **literal** upstream path. Never
+  string-interpolate the raw capture into the fetch URL.
+- Reuse the Phase-1 edge cache (per-item key), or be gated behind KV (Phase 2).
+- May carry `name_en` (single item = cheap), reusing/extending `CatalogueItem`.
+- Land with its SSRF / path-traversal tests in the same PR (§11).
+
+## 11. Testing / eval (this repo has no tests today)
+
+- `resources/list` returns the 6 URIs with all required fields + normative copy.
+- `resources/read` for each fixed URI → valid `contents`, correct `mimeType`.
 - Unknown URI → `-32602` with the actionable message.
-- Allowlist enforcement: a crafted URI that isn't in the catalogue never triggers
-  an upstream fetch (SSRF guard).
-- `resources/templates/list` returns valid RFC-6570 templates (if shipped).
-- Size budget assertion on `catalogue/items`.
+- **Allowlist/SSRF:** a crafted URI not in `RESOURCE_BY_URI` never triggers a fetch.
+- `resources/templates/list` → `[]` (v1).
+- **Size gate:** `catalogue/items` < 80 KB serialized.
+- **Edge cache:** second read within TTL serves from `caches.default` (no upstream hit).
+- *(v2)* item-template `{item_code}` rejects non-numeric / overlong / traversal inputs.
 
-## 8. Build sequence
+## 12. Build sequence
 
-1. **Upstream** — add the 4–5 new `/api/v2/mcp/*` endpoints (+ envelope), or
-   confirm existing aggregations can be reused.
-2. **Worker** — `RESOURCES` const + `resources/list` + `resources/read`
-   (allowlisted dispatch) + `resources/templates/list` + capabilities + telemetry
-   field + version bump `2.7.0` + discovery surfaces.
-3. **Tests** — section 7.
-4. **Deploy** — `wrangler deploy` (auto via the `manamurah5`-style flow), then
-   verify `resources/list` / `resources/read` over the live `/mcp` endpoint and
-   confirm the server card / root manifest reflect the new count.
+1. **Upstream** — add `catalogue/items|states|categories`, `meta/latest-week`
+   (thin ES lookups the SvelteKit app already does); reuse `list_chains`. Each
+   returns the standard `{ status, reason, warnings, data }` envelope.
+2. **Worker** — `src/methodology.ts`; typed `RESOURCES` + `RESOURCE_BY_URI`;
+   `callUpstream` path-override + generic `<T>`; `resources/list` / `resources/read`
+   (edge-cached) / `resources/templates/list:[]`; capabilities; `resource`
+   telemetry field; tool-description cross-links; discovery surfaces; `2.7.0` bump;
+   widen entrypoint to `(request, env, ctx)`.
+3. **Tests** — §11.
+4. **Deploy** — `wrangler deploy`, then verify `resources/list` / `resources/read`
+   live and confirm server card / root manifest reflect the count.
 
-## 9. Open questions for review
+## 13. Adjacent (do alongside; not strictly Resources)
 
-1. **Templates in v1?** Ship `manamurah://item/{item_code}` now, or fixed
-   resources only and add templates later? (Leaning: ship the one item-card
-   template — high value, low cost.)
-2. **Items catalogue fields** — lean (`code, name, name_en, unit, category`) vs
-   include all translations (zh/ta/ms aliases)? (Leaning: lean, for size.)
-3. **Methodology source** — embed a curated MCP methodology blob in the Worker
-   (like `changelog.ts`), or proxy the live `/about` content? (Leaning: embed —
-   stable, no round-trip.)
-4. **`meta/latest-week` now vs fold into proposal #4 (coverage tool)?** The
-   freshness resource overlaps the future coverage work. (Leaning: ship the
-   lightweight freshness resource now; richer per-item coverage stays in #4.)
-5. **`name_en` only or full multilingual** in the item card — depends on expected
-   client locales.
+- **Tool error quality (UX High):** upgrade `Unknown tool: X` / `Tool execution
+  failed` (`src/index.ts:666,688`) to actionable messages, matching the new
+  resource-error standard.
+- **Schema-drift CI check (Arch High, proposal #7):** Worker = 14 tools, Python ref
+  = 15 (`chain_mom_movers`), README/package.json = 14 — already drifted. Resources
+  add a 3rd hand-maintained surface. Add a name-parity check.
 
-## 10. References
+## 14. References
 
+- Review folder: [`reviews/2026-05-22-MCP1-FEATURES/`](./reviews/2026-05-22-MCP1-FEATURES/)
+  (7 persona files + `CONSOLIDATION.md`).
 - Parent proposal: `docs/2026-05-22-mcp-enhancement-proposals.md`
 - Whitepaper: <https://www.kaggle.com/whitepaper-agent-tools-and-interoperability-with-mcp>
-- Code anchors: capabilities `src/index.ts:632` + `:929`; method dispatch `:701`;
-  empty `resources/list` stub `:710`; `callUpstream` `:581`; server card `:867`;
-  root manifest `:911`; telemetry `src/analytics.ts` (`recordMcp`, `CallMeta`).
+- Code anchors: capabilities `src/index.ts:632` + `:929`; dispatch `:701`;
+  `resources/list` stub `:710`; `callUpstream` `:581` (hardcoded path `:587`,
+  returns `unknown` `:586`); pretty-print `:678`; tool errors `:666,:688`; server
+  card `:867`; root manifest `:911`; telemetry `src/analytics.ts`; `tsconfig.json:15`.
