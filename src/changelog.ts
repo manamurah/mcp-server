@@ -14,6 +14,29 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.7.0] — 2026-05-22
+
+### Added
+
+- **\`chain_mom_movers\` tool.** Biggest month-over-month price movers
+  within a chain (or across all chains), with MoM + YoY per row and the
+  \`premise_count\` behind each average. Restores parity with the upstream
+  \`/api/v2/mcp/chain_mom_movers\` endpoint and the Python reference
+  server, which both already exposed it — the Worker had drifted to 14
+  tools; now 15.
+
+### Fixed
+
+- Server-card and root-manifest descriptions reported "11 tools" (stale
+  copy); they now state the correct tool count.
+
+### Changed
+
+- Dev tooling: \`wrangler\` \`3.90\` → \`4.x\` to clear transitive security
+  advisories in \`undici\` (CRLF injection, request smuggling) and
+  \`defu\` (prototype pollution). Dev/build-only — the deployed Worker
+  bundle does not include these packages and is unaffected.
+
 ## [2.6.0] — 2026-05-11
 
 ### Added

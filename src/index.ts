@@ -71,7 +71,7 @@ import { recordMcp, type CallMeta } from './analytics.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.6.0';
+const SERVER_VERSION = '2.7.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -387,6 +387,41 @@ const TOOLS: MCPTool[] = [
 				scope_value: { type: 'string', maxLength: 64 },
 			},
 			required: ['item_codes'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'chain_mom_movers',
+		description:
+			"Find the biggest month-over-month price movers within a chain (or across all chains). Returns top risers and fallers with MoM and YoY per row, plus the premise_count backing each average. Use for 'what's up at AEON this month', 'biggest monthly movers at MYDIN', or 'which DAGING items rose most across hypermarkets'. For week-over-week use top_movers (period='weekly'); for one item's full history use price_history.",
+		inputSchema: {
+			type: 'object',
+			properties: {
+				chain: {
+					type: 'string',
+					maxLength: 64,
+					description:
+						"Restrict to one chain — e.g. 'AEON', 'MYDIN', 'LOTUS'S'. Omit to rank movers across all chains; each row then carries its own chain field.",
+				},
+				chain_type: {
+					type: 'string',
+					enum: CHAIN_TYPES,
+					description:
+						"Restrict to one chain category. Combine with category to ask 'which DAGING items moved most across hypermarkets this month'.",
+				},
+				category: {
+					type: 'string',
+					maxLength: 64,
+					description: 'Optional item_category filter.',
+				},
+				limit: { type: 'integer', minimum: 1, maximum: 20 },
+				min_premises: {
+					type: 'integer',
+					minimum: 1,
+					description:
+						'Minimum reporting premises per chain-item bucket to include (noise gate). Default 3.',
+				},
+			},
 			additionalProperties: false,
 		},
 	},
@@ -871,7 +906,7 @@ export default {
 				version: SERVER_VERSION,
 				title: 'ManaMurah MCP Server',
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data — 11 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, region gap ranker, more) sourced from data.gov.my PriceCatcher.',
+					'MCP server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, chain monthly movers, region gap ranker, more) sourced from data.gov.my PriceCatcher.',
 				websiteUrl: 'https://mcp.manamurah.com/',
 				repository: {
 					url: 'https://github.com/manamurah/mcp-server',
@@ -914,7 +949,7 @@ export default {
 				name: SERVER_PACKAGE_NAME,
 				version: SERVER_VERSION,
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data. 11 strongly-typed tools proxied from manamurah.com.',
+					'MCP server for Malaysian PriceCatcher consumer price data. 15 strongly-typed tools proxied from manamurah.com.',
 				publisher: 'manamurah.com',
 				license: 'MIT',
 
