@@ -6,7 +6,9 @@
 Implements Tier-1 item #1 of [`2026-05-22-mcp-enhancement-proposals.md`](./2026-05-22-mcp-enhancement-proposals.md).
 **Created:** 2026-05-22 · **Revised:** 2026-05-22 (post-review)
 **Target server:** `manamurah-mcp-server` (this repo) — TS Cloudflare Worker, `src/index.ts`.
-**Server version impact:** minor bump `2.6.0 → 2.7.0` (additive; new capability, no breaking change).
+**Server version impact:** minor bump → **`2.8.0`** (additive; new capability, no breaking change).
+The live server is already `2.7.0` (chain_mom_movers, shipped 2026-05-22), so Resources is the
+**next** minor `2.8.0` — NOT `2.7.0`. Prompts+Completions then follow as `2.9.0`.
 **Protocol version:** `2024-11-05` (Resources supported; unchanged).
 
 > **Review outcome:** ship v1 with **fixed resources only** (item template deferred to
@@ -141,7 +143,7 @@ reuse `list_chains`, etc. Tools keep their existing name=path behaviour.
 - **Server card** (`:867`): note "…tools + 6 reference resources" + `_meta.resource_count`.
 - **Root manifest** (`:911`): add `resource_count` + a `resources` array mirroring
   how `tools` is exposed.
-- **Changelog** (`src/changelog.ts` + `CHANGELOG.md`): add the `2.7.0` entry.
+- **Changelog** (`src/changelog.ts` + `CHANGELOG.md`): add the `2.8.0` entry.
 
 ## 4. Required TypeScript (Type-safety High — T1/T2/T3)
 
@@ -260,7 +262,7 @@ ships it MUST:**
 2. **Worker** — `src/methodology.ts`; typed `RESOURCES` + `RESOURCE_BY_URI`;
    `callUpstream` path-override + generic `<T>`; `resources/list` / `resources/read`
    (edge-cached) / `resources/templates/list:[]`; capabilities; `resource`
-   telemetry field; tool-description cross-links; discovery surfaces; `2.7.0` bump;
+   telemetry field; tool-description cross-links; discovery surfaces; `2.8.0` bump;
    widen entrypoint to `(request, env, ctx)`.
 3. **Tests** — §11.
 4. **Deploy** — `wrangler deploy`, then verify `resources/list` / `resources/read`

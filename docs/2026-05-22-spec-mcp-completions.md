@@ -98,8 +98,8 @@ Add `case 'completion/complete'`:
 
 ```ts
 interface PromptReference   { type: 'ref/prompt';   name: string }
-interface ResourceReference { type: 'ref/resource'; uri: string }
-type CompletionRef = PromptReference | ResourceReference;          // discriminated union
+interface ResourceTemplateReference { type: 'ref/resource'; uri: string } // `uri` is a URI *template*
+type CompletionRef = PromptReference | ResourceTemplateReference;  // discriminated union
 interface CompletionContext { arguments: Record<string, string> } // 2025-06-18+ only
 interface CompleteParams { ref: CompletionRef; argument: { name: string; value: string }; context?: CompletionContext }
 interface CompleteResult { completion: { values: string[]; total?: number; hasMore: boolean } }
