@@ -37,6 +37,52 @@ export interface ResourceContents {
 	text: string;
 }
 
+// ── Catalogue data shapes ──
+// The generated `src/generated/catalogue.ts` consts conform to these. Defined
+// here (hand-reviewed) so regeneration cannot silently drift the shapes. One
+// shape per dataset; `CatalogueItem` is the single item shape reused by the
+// (v2-deferred) item card. `name_en` is REQUIRED (user decision 2026-05-22).
+export interface CatalogueItem {
+	item_code: number;
+	name: string; // Malay (PriceCatcher canonical)
+	name_en: string; // English; generator falls back to `name` if a translation is missing
+	unit: string;
+	item_category: string;
+}
+
+export interface CatalogueState {
+	stateid: number;
+	name: string;
+	slug: string;
+	region: 'semenanjung' | 'borneo';
+}
+
+export interface CatalogueCategory {
+	category: string;
+	item_count: number;
+}
+
+export interface CatalogueChain {
+	chain: string;
+	chain_type: string;
+	premise_count: number;
+}
+
+/** Frozen 3-field contract for the `manamurah://meta/latest-week` resource. */
+export interface LatestWeekMeta {
+	latest_weekdate: string;
+	premises_reporting: number;
+	items_with_data: number;
+}
+
+/** Provenance header carried by the generated catalogue module. */
+export interface CatalogueProvenance {
+	source: string;
+	generated_at: string;
+	latest_week: string;
+	recent_active_window: string;
+}
+
 // ──────────────────────────────────────────────────────────────────
 // Completions (2.9.0) — completion attaches to prompt args + resource
 // TEMPLATE args only (never tool args). Hence ResourceTemplateReference.

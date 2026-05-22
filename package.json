@@ -1,13 +1,15 @@
 {
 	"name": "manamurah-mcp-server",
-	"version": "2.7.0",
-	"description": "Remote MCP (Model Context Protocol) server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools for AI agents, deployed on Cloudflare Workers.",
+	"version": "2.8.0",
+	"description": "Remote MCP (Model Context Protocol) server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools + 6 reference resources for AI agents, deployed on Cloudflare Workers.",
 	"main": "src/index.ts",
 	"scripts": {
 		"dev": "wrangler dev",
 		"build": "tsc --noEmit",
 		"deploy": "wrangler deploy",
-		"type-check": "tsc --noEmit"
+		"type-check": "tsc --noEmit",
+		"gen:catalogue": "node scripts/gen-catalogue.mjs",
+		"test": "node --import tsx --test tests/*.test.ts"
 	},
 	"keywords": [
 		"mcp",
@@ -22,9 +24,15 @@
 	],
 	"author": "manamurah.com",
 	"license": "MIT",
-	"files": ["src/**/*", "wrangler.toml", "README.md", "LICENSE"],
+	"files": [
+		"src/**/*",
+		"wrangler.toml",
+		"README.md",
+		"LICENSE"
+	],
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20260520.1",
+		"tsx": "^4.22.3",
 		"typescript": "^5.5.0",
 		"wrangler": "^4.93.1"
 	},

@@ -14,6 +14,30 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.8.0] — 2026-05-23
+
+### Added
+
+- **MCP Resources.** The server now advertises \`resources\` capability
+  (\`listChanged: false\`) and exposes six fixed reference resources, served
+  from the bundled, generated catalogue (zero network at request time):
+  - \`manamurah://catalogue/items\` — active items (last 12 months) with
+    code, Malay + English name, unit, category. No prices.
+  - \`manamurah://catalogue/states\` — 16 states/FTs with id, slug, region.
+  - \`manamurah://catalogue/categories\` — categories with item counts.
+  - \`manamurah://catalogue/chains\` — chains/premises with premise counts.
+  - \`manamurah://meta/latest-week\` — data week + reporting coverage.
+  - \`manamurah://docs/methodology\` — pricing methodology & caveats.
+- \`resources/list\`, \`resources/read\`, and \`resources/templates/list\`
+  (empty in v1 — the item-card URI template is deferred to v2).
+- Telemetry: a \`resource\` field records the resolved resource name.
+
+### Changed
+
+- \`search_items\`, \`list_chains\`, and \`compare_prices\` descriptions now
+  point at the relevant \`manamurah://catalogue/*\` resource.
+- Server card and root manifest now report \`resource_count\`.
+
 ## [2.7.0] — 2026-05-22
 
 ### Added

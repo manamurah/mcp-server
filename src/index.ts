@@ -62,6 +62,7 @@ interface MCPResponse {
 
 import { CHANGELOG_MARKDOWN } from './changelog.js';
 import { recordMcp, type CallMeta } from './analytics.js';
+import { RESOURCES, listResources, readResource } from './resources.js';
 
 // ---------------------------------------------------------------------
 // Server identity — single source of truth for serverInfo.version,
@@ -71,7 +72,7 @@ import { recordMcp, type CallMeta } from './analytics.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.7.0';
+const SERVER_VERSION = '2.8.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -140,7 +141,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'search_items',
 		description:
-			'Search the Malaysian PriceCatcher item catalogue by name in any language (Malay/English/Chinese/Tamil). Use this FIRST when the user mentions a food item by name to resolve it to the item_code that every other tool requires. Returns up to 20 matches with translations. Do not use for prices — chain to find_cheapest or price_history next.',
+			'Search the Malaysian PriceCatcher item catalogue by name in any language (Malay/English/Chinese/Tamil). Use this FIRST when the user mentions a food item by name to resolve it to the item_code that every other tool requires. Returns up to 20 matches with translations. Do not use for prices — chain to find_cheapest or price_history next. Tip: the full active item list (code + Malay/English name + category) is also available as the `manamurah://catalogue/items` resource — read it once to skip repeated lookups.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -260,7 +261,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'compare_prices',
 		description:
-			"Compare one item's current-week price across national / state / district / chain / urbanisation dimensions in a single call. Use for 'is this a good price' or 'how does X compare across states'.",
+			"Compare one item's current-week price across national / state / district / chain / urbanisation dimensions in a single call. Use for 'is this a good price' or 'how does X compare across states'. Resolve names to ids/slugs via the `manamurah://catalogue/items` and `manamurah://catalogue/states` resources.",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -278,7 +279,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'list_chains',
 		description:
-			'Enumerate known retail chains with premise counts and geographic spread. Up to 50 chains sorted by premise count. Use to discover valid chain names before filtering find_cheapest or nearby_premises.',
+			'Enumerate known retail chains with premise counts and geographic spread. Up to 50 chains sorted by premise count. Use to discover valid chain names before filtering find_cheapest or nearby_premises. The whole active chain set is also available as the `manamurah://catalogue/chains` resource.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -664,7 +665,7 @@ function handleInitialize(request: MCPRequest): MCPResponse {
 		id: request.id,
 		result: {
 			protocolVersion: PROTOCOL_VERSION,
-			capabilities: { tools: {}, prompts: {}, resources: {} },
+			capabilities: { tools: {}, prompts: {}, resources: { listChanged: false } },
 			serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
 		},
 	};
@@ -672,6 +673,31 @@ function handleInitialize(request: MCPRequest): MCPResponse {
 
 function handleToolsList(request: MCPRequest): MCPResponse {
 	return { jsonrpc: '2.0', id: request.id, result: { tools: TOOLS } };
+}
+
+function handleResourcesRead(request: MCPRequest, meta?: CallMeta): MCPResponse {
+	const params = (request.params ?? {}) as { uri?: string };
+	const uri = params.uri;
+	if (typeof uri !== 'string' || uri.length === 0) {
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			error: {
+				code: -32602,
+				message: 'Missing resource uri. Call resources/list for the catalogue.',
+			},
+		};
+	}
+	const result = readResource(uri);
+	if (!result.ok) {
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			error: { code: result.code, message: result.message },
+		};
+	}
+	if (meta) meta.resource = result.resourceName;
+	return { jsonrpc: '2.0', id: request.id, result: { contents: result.contents } };
 }
 
 async function handleToolCall(
@@ -743,7 +769,11 @@ async function handleMCP(
 			case 'prompts/list':
 				return { jsonrpc: '2.0', id: request.id, result: { prompts: [] } };
 			case 'resources/list':
-				return { jsonrpc: '2.0', id: request.id, result: { resources: [] } };
+				return { jsonrpc: '2.0', id: request.id, result: { resources: listResources() } };
+			case 'resources/read':
+				return handleResourcesRead(request, meta);
+			case 'resources/templates/list':
+				return { jsonrpc: '2.0', id: request.id, result: { resourceTemplates: [] } };
 			case 'ping':
 				return { jsonrpc: '2.0', id: request.id, result: {} };
 			default:
@@ -863,6 +893,7 @@ export default {
 			recordMcp(env.WAE, {
 				method: body?.method,
 				tool: meta.tool,
+				resource: meta.resource,
 				ok: !response.error,
 				errorCode: response.error?.code,
 				backendStatus: meta.backendStatus,
@@ -906,7 +937,7 @@ export default {
 				version: SERVER_VERSION,
 				title: 'ManaMurah MCP Server',
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, chain monthly movers, region gap ranker, more) sourced from data.gov.my PriceCatcher.',
+					'MCP server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, chain monthly movers, region gap ranker, more) + 6 reference resources (item catalogue, states, categories, chains, data freshness, methodology), sourced from data.gov.my PriceCatcher.',
 				websiteUrl: 'https://mcp.manamurah.com/',
 				repository: {
 					url: 'https://github.com/manamurah/mcp-server',
@@ -933,6 +964,8 @@ export default {
 					data_license: 'Open Data Licence (Malaysia)',
 					auth: 'none — public read-only',
 					rate_limit: '120 req / 60s per IP',
+					tool_count: TOOLS.length,
+					resource_count: RESOURCES.length,
 				},
 			});
 		}
@@ -949,7 +982,7 @@ export default {
 				name: SERVER_PACKAGE_NAME,
 				version: SERVER_VERSION,
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data. 15 strongly-typed tools proxied from manamurah.com.',
+					'MCP server for Malaysian PriceCatcher consumer price data. 15 strongly-typed tools proxied from manamurah.com, plus 6 embedded reference resources.',
 				publisher: 'manamurah.com',
 				license: 'MIT',
 
@@ -961,7 +994,7 @@ export default {
 
 				// Protocol
 				protocolVersion: PROTOCOL_VERSION,
-				capabilities: { tools: {}, prompts: {}, resources: {} },
+				capabilities: { tools: {}, prompts: {}, resources: { listChanged: false } },
 				endpoints: {
 					mcp: '/mcp',
 					changelog: '/changelog',
@@ -971,6 +1004,11 @@ export default {
 				// Tool catalogue — full schemas so registries can index in one GET.
 				tool_count: TOOLS.length,
 				tools: TOOLS,
+
+				// Reference resources — descriptors (read them over JSON-RPC
+				// resources/read; payloads are embedded reference data, no prices).
+				resource_count: RESOURCES.length,
+				resources: listResources(),
 
 				// Versioning policy
 				versioning: ROOT_VERSIONING,

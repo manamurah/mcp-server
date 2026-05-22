@@ -24,6 +24,7 @@
  *   blob5  client     MCP clientInfo.name from initialize, else '-'
  *   blob6  client_ver MCP clientInfo.version from initialize, else '-'
  *   blob7  user_agent truncated to 128 chars, else '-'
+ *   blob8  resource   resolved resource name (resources/read), else '-'
  *   double1 latency_ms   wall-clock around handleMCP
  *   double2 backend_status  upstream /api/v2/mcp HTTP status (tools/call), else 0
  */
@@ -32,6 +33,8 @@
 export interface CallMeta {
 	/** Resolved tool name (set by handleToolCall). */
 	tool?: string;
+	/** Resolved resource name (set by handleResourcesRead). */
+	resource?: string;
 	/** Upstream /api/v2/mcp HTTP status (set by callUpstream). */
 	backendStatus?: number;
 }
@@ -54,6 +57,7 @@ export interface McpTelemetryPoint {
 	clientName?: string;
 	clientVersion?: string;
 	userAgent?: string | null;
+	resource?: string;
 	latencyMs: number;
 }
 
@@ -98,7 +102,8 @@ export function recordMcp(wae: WaeBinding | undefined, p: McpTelemetryPoint): vo
 				errClass(p.errorCode),
 				trunc(p.clientName, 64),
 				trunc(p.clientVersion, 32),
-				trunc(p.userAgent, 128)
+				trunc(p.userAgent, 128),
+				trunc(p.resource, 64)
 			],
 			doubles: [
 				Number.isFinite(p.latencyMs) ? p.latencyMs : 0,

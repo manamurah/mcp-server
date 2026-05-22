@@ -6,6 +6,36 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.8.0] — 2026-05-23
+
+### Added
+
+- **MCP Resources.** The server now advertises `resources` capability
+  (`listChanged: false`) and exposes six fixed reference resources, served
+  from the bundled, generated catalogue (zero network at request time):
+  - `manamurah://catalogue/items` — active items (last 12 months) with
+    code, Malay + English name, unit, category. No prices.
+  - `manamurah://catalogue/states` — 16 states/FTs with id, slug, region.
+  - `manamurah://catalogue/categories` — categories with item counts.
+  - `manamurah://catalogue/chains` — chains/premises with premise counts.
+  - `manamurah://meta/latest-week` — data week + reporting coverage.
+  - `manamurah://docs/methodology` — pricing methodology & caveats.
+- `resources/list`, `resources/read`, and `resources/templates/list`
+  (empty in v1 — the item-card URI template is deferred to v2).
+- Catalogue is generated from the manamurah DB via
+  `scripts/export_catalogue.sql` → `scripts/gen-catalogue.mjs` →
+  `src/generated/catalogue.ts`. Recent-active filtering is single-sourced
+  upstream in the data repo; the generator only consumes it.
+- Telemetry: a `resource` field (blob8) records the resolved resource name.
+
+### Changed
+
+- `search_items`, `list_chains`, and `compare_prices` descriptions now
+  point at the relevant `manamurah://catalogue/*` resource so agents
+  discover the round-trip-saving reference data.
+- Server card and root manifest now report `resource_count` and (root) the
+  full resource descriptor list.
+
 ## [2.7.0] — 2026-05-22
 
 ### Added
