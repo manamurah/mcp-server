@@ -32,6 +32,13 @@ Per-persona overall ratings:
 
 ## The one real conflict — `name_en` in the bulk catalogue
 
+> **⚠️ SUPERSEDED 2026-05-22 (user decision):** the "drop `name_en`" resolution below was
+> **overridden** — `name_en` is now **required** in `catalogue/items`, paired with a
+> recent-active item filter (last ~12 weeks) that offsets the size cost. Reason: the MCP2
+> Completions review (UX-1) showed a Malay-only catalogue gives English typists an empty
+> autocomplete dropdown, and English queries are a headline use case. See the revised Resources
+> spec §2/§9. The analysis below is retained as the original review record.
+
 - **UX** wanted `name` (Malay) + `name_en` for English-speaking agents.
 - **Performance** + **Cost** + **Type-safety** pushed lean: 5-field (incl. `name_en`) ≈ **95 KB / ~25 K tokens** (busts the 80 KB budget); 4-field ≈ **63 KB / ~16 K tokens**. Full multilingual ≈ 176 KB / 3–4× the agent's context-token cost.
 

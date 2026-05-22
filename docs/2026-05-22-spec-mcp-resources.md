@@ -44,20 +44,32 @@ descriptions must state "no prices", languages carried, and freshness.
 
 | URI | name / title | mimeType | upstreamPath (sole fetch authority) | description (normative) |
 |---|---|---|---|---|
-| `manamurah://catalogue/items` | `items` / "Item catalogue" | `application/json` | `catalogue/items` *(new)* | "All ~756 PriceCatcher items: code, Malay name, unit, category. No prices — use price tools for those. For English/Chinese/Tamil names, call `search_items`." |
+| `manamurah://catalogue/items` | `items` / "Item catalogue" | `application/json` | `catalogue/items` *(new)* | "All currently-active PriceCatcher items (observed in the last ~12 weeks): code, Malay name, English name, unit, category. No prices — use price tools. Discontinued items are excluded; for Chinese/Tamil names or fuzzy search, call `search_items`." |
 | `manamurah://catalogue/states` | `states` / "States & federal territories" | `application/json` | `catalogue/states` *(new)* | "16 states/FTs with id, name, slug, region (semenanjung/borneo)." |
 | `manamurah://catalogue/categories` | `categories` / "Item categories" | `application/json` | `catalogue/categories` *(new)* | "~40 item categories with item counts. Use as the `category` filter on `search_items`." |
 | `manamurah://catalogue/chains` | `chains` / "Retail chains" | `application/json` | `list_chains` *(reuse)* | "~50 retail chains with premise counts, chain_type, states. The whole-set companion to the `list_chains` tool." |
 | `manamurah://meta/latest-week` | `latest-week` / "Data freshness" | `application/json` | `meta/latest-week` *(new)* | "Current data week + coverage: `latest_weekdate, premises_reporting, items_with_data`. Read this to know how fresh prices are." |
 | `manamurah://docs/methodology` | `methodology` / "Methodology & caveats" | `text/markdown` | *embedded — see §5* | "How prices are computed: weekly-average cadence, equal-premise weighting, outlier filtering, the n≥30 reliability guidance. Cite these caveats when reporting figures." |
 
-**`catalogue/items` field set — LEAN, 4 fields (all required):**
-`item_code` (int), `name` (Malay), `unit` (string), `item_category` (string).
-**`name_en` and zh/ta are deliberately excluded** — they triple the standing
-context-token cost (~16 K tokens lean vs ~45 K full) for marginal value, and
-`search_items` already returns all translations on demand. (Review Q2/Q5; the
-single conflict, resolved in CONSOLIDATION.md.) Revisit only if telemetry shows
-English-locale agents repeatedly round-tripping after reading the catalogue.
+**`catalogue/items` field set — 5 fields (all required):**
+`item_code` (int), `name` (Malay), `name_en` (English), `unit` (string),
+`item_category` (string).
+
+> **`name_en` is REQUIRED** (user decision 2026-05-22 — **reverses** the MCP1-review's
+> lean 4-field call). Rationale: English-typed agents/users are a headline use case (the
+> README markets English queries), and dropping `name_en` left the MCP2 Completions feature
+> with an English-typist **empty-dropdown gap** (MCP2 review UX-1: typing "watermelon" against
+> a Malay-only catalogue returns nothing). Carrying `name_en` closes that gap at the source.
+> zh/ta + aliases remain excluded (still served on demand by `search_items`) to bound size.
+
+> **`catalogue/items` is filtered to recent-active items** (user decision 2026-05-22): only
+> items with ≥1 observation in the last **N weeks (default N=12, ~one quarter)** of the weekly
+> index are listed. This (a) drops long-discontinued items no price tool can answer for —
+> e.g. `AYAM MASAK HALIA`/1201, gone after May 2022 — and (b) trims the item count, partly
+> offsetting the `name_en` size increase. Enforced at the **upstream `catalogue/items`
+> endpoint** (an ES filter on the weekly index), mirroring the recent-active philosophy already
+> applied to the /peta-harga parquet export in `manamurah-data-2026`, but at week grain.
+> **N is the one parameter to confirm** — widen if legitimately-tracked seasonal items vanish.
 
 **`meta/latest-week` contract is frozen** to those 3 fields. Proposal #4 (the
 coverage tool) MUST reuse the same upstream view rather than duplicate-aggregate;
@@ -139,7 +151,7 @@ mandating these (the spec must not introduce an untyped boundary):
 ```ts
 interface ResourceContents { uri: string; mimeType: string; text: string }
 interface ResourceReadParams { uri: string }
-interface CatalogueItem { item_code: number; name: string; unit: string; item_category: string }
+interface CatalogueItem { item_code: number; name: string; name_en: string; unit: string; item_category: string }
 // Generic the upstream boundary instead of returning `unknown` (src/index.ts:586):
 async function callUpstream<T>(/* ... */): Promise<T> { /* ... */ }
 ```
@@ -204,10 +216,13 @@ second read.
 
 ## 9. Size / token discipline
 
-`catalogue/items` is the only sizable resource. At 4 fields, compact-serialized:
-**≈ 60–65 KB / ~16 K tokens** (vs ~95 KB / ~25 K with `name_en`, ~176 KB full
-multilingual). Others are < 5 KB. **CI gate: `catalogue/items` serialized size
-< 80 KB** (passes comfortably). Whitepaper: "design for concise output."
+`catalogue/items` is the only sizable resource. With `name_en` (required, above) **and**
+the recent-active filter (last ~12 weeks), compact-serialized: **≈ 75–90 KB / ~20–24 K
+tokens** — the filter trims the long tail while `name_en` adds ~30%. Others are < 5 KB.
+**CI gate: `catalogue/items` serialized size < 100 KB.** The recent-active filter is now the
+main lever keeping this bounded (it shrinks as discontinued items age out); if the filtered
+catalogue ever approaches the gate, tighten N before dropping `name_en`. Whitepaper: "design
+for concise output."
 
 ## 10. Deferred to v2 — item card template
 
@@ -230,13 +245,16 @@ ships it MUST:**
 - Unknown URI → `-32602` with the actionable message.
 - **Allowlist/SSRF:** a crafted URI not in `RESOURCE_BY_URI` never triggers a fetch.
 - `resources/templates/list` → `[]` (v1).
-- **Size gate:** `catalogue/items` < 80 KB serialized.
+- **Size gate:** `catalogue/items` < 100 KB serialized (with `name_en` + recent-active filter).
+- **Recent-active filter:** `catalogue/items` excludes items with no observation in the last
+  N weeks (e.g. assert a known-discontinued code like 1201 is absent; a known-active code present).
 - **Edge cache:** second read within TTL serves from `caches.default` (no upstream hit).
 - *(v2)* item-template `{item_code}` rejects non-numeric / overlong / traversal inputs.
 
 ## 12. Build sequence
 
-1. **Upstream** — add `catalogue/items|states|categories`, `meta/latest-week`
+1. **Upstream** — add `catalogue/items` (incl. `name_en`, **filtered to items active in the
+   last N weeks**), `catalogue/states|categories`, `meta/latest-week`
    (thin ES lookups the SvelteKit app already does); reuse `list_chains`. Each
    returns the standard `{ status, reason, warnings, data }` envelope.
 2. **Worker** — `src/methodology.ts`; typed `RESOURCES` + `RESOURCE_BY_URI`;

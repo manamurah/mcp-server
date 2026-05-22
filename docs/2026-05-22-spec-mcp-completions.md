@@ -1,216 +1,223 @@
 # Spec: MCP Completions (argument autocomplete) for manamurah MCP server
 
-**Status:** Draft spec — not yet implemented. Implements Tier-1 item #2 of
-[`2026-05-22-mcp-enhancement-proposals.md`](./2026-05-22-mcp-enhancement-proposals.md).
-**Created:** 2026-05-22
-**Target server:** `manamurah-mcp-server` (this repo) — TS Cloudflare Worker, `src/index.ts`.
-**Server version impact:** minor bump, **version TBD by sequencing** (lands with or after
-Prompts #3 / Resources-v2 templates — see §3). Not 2.7.0 (already shipped) and not 2.8.0
-(reserved for Resources v1).
-**Protocol version:** `2024-11-05` today. Basic completions are supported there; **dependent
-completions (`context.arguments`) require upgrading the advertised version to `2025-06-18`** (§8).
+**Status:** Reviewed & revised (v2, 2026-05-22) — incorporates the 7-persona review in
+[`reviews/2026-05-22-MCP2-COMPLETIONS/`](./reviews/2026-05-22-MCP2-COMPLETIONS/) (see
+[`CONSOLIDATION.md`](./reviews/2026-05-22-MCP2-COMPLETIONS/CONSOLIDATION.md)).
+**This is a DESIGN REFERENCE, not a standalone build.** The review's unanimous structural
+finding: argument completion is a *facet of a prompt argument*, not a feature — it has no
+surface, data, or value without #1 (data) and #3 (prompt arguments). **It folds into the #3
+Prompts spec and ships in the #3 release.** Implements Tier-1 item #2 of
+[`2026-05-22-mcp-enhancement-proposals.md`](./2026-05-22-mcp-enhancement-proposals.md), now
+demoted from a standalone tier.
+**Created:** 2026-05-22 · **Revised:** 2026-05-22 (post-review)
+**Version impact:** none of its own — part of the #3 Prompts release.
+**Protocol version:** ship **context-free on `2024-11-05`**; the `context.arguments` dependent-
+completion feature (needs `2025-06-18`) is deferred to a separate server-wide bump (§8).
 
 > **Headline finding (read first):** the proposal framed #2 as "autocomplete the
 > `item`/`state`/`chain`/`category` **tool** parameters." **MCP does not support tool-argument
-> completion.** `completion/complete` attaches **only** to (a) **prompt** arguments
-> (`ref/prompt`) and (b) **resource URI-template** arguments (`ref/resource`). So Completions
-> has *no surface to attach to* until Prompts (#3) and/or the Resources-v2 item template (#1)
-> exist. This spec defines the completion machinery and the catalogue-backed completers, and
-> **recommends sequencing #2 to land together with #3 (Prompts)** — that is where it delivers
-> the most user value. Building #2 standalone now would ship a capability with nothing to complete.
+> completion.** `completion/complete` attaches **only** to **prompt** arguments (`ref/prompt`)
+> and **resource URI-template** arguments (`ref/resource`). So completion is meaningless until
+> #3 Prompts exist, and pairs with their *name-typed* arguments. **Do not build #2 standalone;
+> build the completers into the #3 prompt-argument definitions.** This document specifies the
+> machinery + completers so #3 can absorb them.
 
 ## 1. Goal
 
-Give agents/users IDE-style autocomplete for the high-friction Malaysian-data
-arguments — item, state, chain, category — so they don't have to know exact
-codes or spellings. This is the same friction the Resources catalogue (#1)
-attacks from the data side; Completions attacks it from the *input* side. The
-whitepaper's "concise, low-friction tool use" applies.
+IDE-style autocomplete for the high-friction Malaysian-data arguments — item, state, chain,
+category — on the **#3 prompt arguments**, so users/agents don't need exact codes or spellings.
+Same friction the #1 catalogue attacks from the data side; completion attacks the input side.
 
-## 2. What MCP completion actually is (grounding)
+## 2. What MCP completion actually is (grounding — verified against the live spec)
 
-Per the MCP spec (utilities/completion):
-
-- Server declares the capability: `"capabilities": { "completions": {} }`.
-- Client sends `completion/complete` with:
-  - `ref`: **`{ type: "ref/prompt", name }`** OR **`{ type: "ref/resource", uri }`** (a URI
+- Capability: `"capabilities": { "completions": {} }`.
+- `completion/complete` params:
+  - `ref`: **`{ type: "ref/prompt", name }`** OR **`{ type: "ref/resource", uri }`** (URI
     *template*). **No `ref/tool`.**
-  - `argument`: `{ name, value }` (the arg being typed + its partial value).
-  - `context` *(optional, 2025-06-18+)*: `{ arguments: { <resolvedName>: <value> } }` for
-    dependent completions (e.g. district suggestions filtered by an already-chosen state).
-- Server returns `{ completion: { values: string[] /* ≤100 */, total?: number, hasMore: boolean } }`.
-- SHOULD: rank by relevance, fuzzy-match, **rate-limit**, validate inputs.
+  - `argument`: `{ name, value }` (the arg + partial value).
+  - `context` *(optional, 2025-06-18+ only)*: `{ arguments: { <name>: <value> } }` for dependent
+    completions.
+- Result: `{ completion: { values: string[] /* ≤100 */, total?: number, hasMore: boolean } }`.
+- SHOULD: relevance sort, fuzzy match, rate-limit, validate inputs.
 - Errors: `-32601` (capability/ref unsupported), `-32602` (bad ref/args), `-32603` (internal).
+- **`values` are inserted verbatim as the argument value** → completers for a name-typed arg
+  return names; a code-typed arg could only return bare codes (why `{item_code}` stays
+  uncompletable, §11).
 
-**Implication:** completion `values` are the *strings inserted as the argument value*. That
-shapes completer design — a completer for a `{item_code}` template arg must return codes
-(awkward when the user types a name), whereas a completer for a name-typed *prompt* argument
-returns names (natural). This is the core reason Completions pairs best with **Prompts**.
+## 3. Decision: fold into #3 Prompts (resolved — was "sequencing")
 
-## 3. Dependency & sequencing (the load-bearing decision)
+Completion needs a completable surface. The only viable one is **#3 prompt arguments** (name-
+typed → natural). The Resources-v2 `{item_code}` template is a weak surface (code vs name
+mismatch) and stays uncompletable (§11); tools are not completable in MCP.
 
-Completions cannot ship value alone. It needs at least one completable surface:
+**Therefore:** the completer machinery and the four completers below are **specified here but
+implemented inside #3**, with each completer **hanging off its prompt-argument definition** (not
+a separate `COMPLETERS` registry — a separate registry would duplicate prompt-arg names and
+become a drift surface, the same class as the tool/Python-ref drift MCP1 flagged). The advertised
+`completions: {}` capability is **gated on a non-empty live completer** — never advertise an
+empty completion surface.
 
-| Surface | Status | Completable args it would expose |
-|---|---|---|
-| **Prompts (#3)** | not built | `item`, `state`, `chain`, `category` arguments on prompts like `semak-dakwaan-harga`, `basket-bulanan`, `banding-bandar` — **name-typed → natural completion** |
-| **Resource templates (#1 v2)** | deferred to v2 (Resources spec §10) | `{item_code}` on `manamurah://item/{item_code}` — **code-typed → awkward** (user types a name, arg wants a number) |
-| **Tools** | live | ❌ not completable in MCP |
+## 4. Completers (built into #3 prompt arguments)
 
-**Recommendation: build #2 together with #3 (Prompts).** Prompt arguments are name-typed and
-user-facing, which is exactly what completion is good at. The Resources-v2 `{item_code}`
-template is a weak completion surface (code vs name mismatch) and is itself deferred.
+For #3 prompts exposing these name-typed arguments, register a completer per prompt-argument:
 
-Concretely, the build order becomes: **#1 Resources (data) → #3 Prompts (surface) + #2
-Completions (autocomplete on those prompt args), shipped together.** This spec is written so
-the completion *machinery* (capability, handler, completer registry) can land first as inert
-scaffolding if desired, but the *useful* completers switch on with the prompt arguments.
-
-## 4. Completable surfaces & completers (when Prompts exist)
-
-Assuming the #3 prompts expose these arguments, register a completer per `(ref, argumentName)`:
-
-| Completer | Backing data (reuse #1) | Match | Returns (values) |
+| Completer | Backing data (embedded catalogue, §7) | Match | Returns (verbatim values) |
 |---|---|---|---|
-| `item` | `catalogue/items` (Malay `name`) | case-insensitive substring + prefix-boost on `name` | item **names** (the prompt arg is name-typed); cap 100, `hasMore` when more |
-| `state` | `catalogue/states` (16) | prefix on `name` | canonical state names (e.g. `Selangor`, `W.P. Kuala Lumpur`) |
-| `chain` | `catalogue/chains` (~50) | substring on `name` | chain names (e.g. `AEON`, `MYDIN`) |
-| `category` | `catalogue/categories` (~40) | prefix on `category` | category labels (e.g. `SAYUR-SAYURAN`) |
+| `item` | `catalogue/items` `name` **+ `name_en`** | case-insensitive substring + prefix-boost, ASCII-fold | canonical item **names** (cap 100, `hasMore`) |
+| `state` | `catalogue/states` (16) | prefix, fold | canonical state names (`Selangor`, `W.P. Kuala Lumpur` — verbatim, case-sensitive) |
+| `chain` | `catalogue/chains` (~50) | substring, fold | chain names (`AEON`, `MYDIN`) |
+| `category` | `catalogue/categories` (~40) | prefix, fold | category labels (`SAYUR-SAYURAN`) |
 
-All four are backed by the **same catalogue data #1 already loads** — no new upstream
-endpoints. The completers are pure in-memory filters over small lists (states/chains/categories
-are tiny; items ~756). This is the synergy: #1 provides the data, #2 filters it, #3 surfaces it.
+**English-typist gap (MCP2 UX-1) is closed at the source:** the #1 `catalogue/items` now carries
+`name_en` (required) and is recent-active filtered (user decision 2026-05-22). The `item`
+completer matches on `name` **and** `name_en`, so "watermelon" resolves to `TEMBIKAI…`. No
+separate alias map needed. Returned values are the canonical names (UX-4: verbatim, correctly
+cased — matching is fold-insensitive, output is not).
 
 ## 5. Protocol changes (Worker, `src/index.ts`)
 
-### 5.1 Capability (`handleInitialize:632`, root manifest `:929`)
+### 5.1 Capability (`handleInitialize` ~`:667`, root manifest ~`:964`)
 
 ```diff
 - capabilities: { tools: {}, prompts: {}, resources: { listChanged: false } }
 + capabilities: { tools: {}, prompts: {}, resources: { listChanged: false }, completions: {} }
 ```
+**Gate this flag on a live completer existing** (i.e. it appears with #3, not before).
 
-### 5.2 `completion/complete` handler (`handleMCP:701`)
+### 5.2 `completion/complete` handler (`handleMCP` ~`:736`)
 
-Add a `case 'completion/complete'`. Dispatch:
+Add `case 'completion/complete'`:
+1. Runtime-narrow params via a type guard (§6) → `{ ref, argument, context? }`.
+2. Resolve the completer for `(ref, argument.name)` from the **prompt-argument definitions**
+   (#3). Unknown `(ref,arg)` → `{ values: [], hasMore: false }` (not an error). Malformed `ref` /
+   missing `argument` → `-32602`.
+3. Clamp `argument.value` (≤64 chars), match over the embedded list, sort (prefix > substring,
+   then alpha / `premise_count`), truncate to 100, set `total` + `hasMore`.
 
-1. Parse `ref`, `argument.name`, `argument.value`, optional `context.arguments`.
-2. Resolve a completer from a **registry** keyed by `(refKey, argumentName)`, where
-   `refKey` is `prompt:<name>` or `resource:<uriTemplate>`. Unknown `(ref,arg)` → empty
-   `{ values: [], hasMore: false }` (NOT an error — the spec says return suggestions; an
-   unknown completable arg just has none). Reserve `-32602` for a malformed `ref`/missing
-   `argument`.
-3. Run the completer over the backing list, fuzzy/prefix match on `argument.value`.
-4. Truncate to 100, set `total` (full match count) and `hasMore = total > returned`.
+## 6. Required TypeScript (matches the Resources bar — Type-safety High)
 
 ```ts
-type Completer = (partial: string, ctx: Record<string,string>) => string[]; // full matches, pre-cap
-interface CompletionEntry { refKey: string; argument: string; complete: Completer }
-const COMPLETERS: CompletionEntry[] = [ /* item/state/chain/category, per §4 */ ];
-const COMPLETION_CAP = 100;
+interface PromptReference   { type: 'ref/prompt';   name: string }
+interface ResourceReference { type: 'ref/resource'; uri: string }
+type CompletionRef = PromptReference | ResourceReference;          // discriminated union
+interface CompletionContext { arguments: Record<string, string> } // 2025-06-18+ only
+interface CompleteParams { ref: CompletionRef; argument: { name: string; value: string }; context?: CompletionContext }
+interface CompleteResult { completion: { values: string[]; total?: number; hasMore: boolean } }
+type Completer = (partial: string, ctx?: CompletionContext) => string[]; // pre-cap full matches
 ```
 
-### 5.3 Telemetry (`src/analytics.ts`)
+- `ctx` is **optional** — it is protocol-gated (absent on 2024-11-05). A required `ctx` would
+  type a lie.
+- Resolve the ref via an **exhaustive** `switch (ref.type)` with a `never` default — never
+  blind-cast the union (the existing `handleToolCall` flat-cast must not be copied onto `ref`).
+- Mandate an `isCompleteParams(p: unknown): p is CompleteParams` guard before use (no zod in
+  repo). Use `Map.get`/`.find` (already `T | undefined` under the repo's `noUncheckedIndexedAccess`
+  default), never bare `[]`.
 
-- Reuse the `resource`/`tool` pattern: add a `completionRef` field (the `refKey` +
-  `argumentName`, e.g. `prompt:semak-dakwaan-harga#item`) — **never the partial value typed**
-  (could be sensitive / high-cardinality). Record match count + latency.
-- 100% sampling is fine (low volume), but completion is the one method a client may call
-  rapidly while typing — see rate-limiting (§9).
+## 7. Backing data — embed the catalogue (CF + Perf High)
 
-### 5.4 Discovery
+Completers read an **embedded catalogue const bundled into the Worker** (mirrors
+`methodology.ts`/`changelog.ts`), NOT the #1 Cache-API/KV phases. Rationale: those are async
+network reads, so a cold isolate's **first keystroke** would block on a fetch — the worst place
+for latency. Embedding (~75–90 KB with `name_en` + recent-active filter; trivial vs the bundle
+limit) makes every keystroke, including the first, **zero-network** and makes the "no ES call"
+property structurally true. Parse/fold once into a **module-global memo** (per-isolate); CF
+doesn't guarantee isolate persistence, which is fine for read-only ETL-derived data.
 
-- Server card (`:867`) + root manifest (`:929`): advertise `completions` in `capabilities`.
-- No tool/resource description changes (completions are invisible until a client uses them).
+**Refresh tradeoff:** an embedded catalogue is only as fresh as the last deploy. Acceptable —
+item *names* don't change weekly and recent-active *membership* tolerates a few days' lag.
+Regenerate the const on the existing CF Workers Builds cadence if weekly membership freshness
+matters. (Build-step detail for #3.)
 
-## 6. Backing data & matching
-
-- **Source:** the #1 catalogue (post-#1 this is either embedded, Cache-API-cached, or KV per
-  the Resources caching phases). Completers read the same in-memory/cached lists — **do not add
-  upstream calls per keystroke** (that would be an ES round-trip on every character; see §9).
-- **Matching:** case-insensitive; ASCII-fold (so `pulau pinang` matches `Pulau Pinang`); prefix
-  matches rank above substring matches; ties broken by `premise_count` (chains) or alpha.
-- **`item` scale:** 756 items in memory is trivial to filter per request; no index needed.
-
-## 7. Why not back completions with `search_items`?
-
-Tempting (it already does multilingual item search), but: (a) it's an ES round-trip per
-keystroke — latency + the exact ES-load/cost the reviews warned about; (b) it returns rich
-records, not completion strings. Use the **cached catalogue list** for completion; reserve
-`search_items` for actual resolution. (If fuzzy quality proves insufficient from the flat list,
-revisit — but start cheap.)
+**Do NOT back completions with `search_items`** — that is an ES round-trip per keystroke (the
+exact cost/capacity risk the reviews forbid). Reserve `search_items` for actual resolution.
 
 ## 8. Protocol-version consideration
 
-The server advertises `2024-11-05`, where `completion/complete` exists **without** the
-`context` field. Dependent completions (e.g. "suggest districts within the already-chosen
-state") require the `context.arguments` field added in **`2025-06-18`**. Decision: ship v1
-completers **context-free** (each arg completes independently) on the current protocol version;
-only bump the advertised `protocolVersion` to `2025-06-18` if/when a dependent completer is
-actually wanted. Bumping the protocol version is its own review (it changes initialize
-negotiation and should be validated against the live clients: Claude.ai, Claude Desktop, ChatGPT).
+Ship completers **context-free on `2024-11-05`** (each arg completes independently). Dependent
+completions (e.g. district filtered by chosen state) need `context.arguments` from `2025-06-18`.
+If ever wanted, bump the advertised `PROTOCOL_VERSION` (`src/index.ts:75`) **server-wide** in a
+dedicated PR with live-client re-validation (Claude.ai, Claude Desktop, ChatGPT) — never gate it
+per-completer.
 
-## 9. Security & rate limiting (spec MUST)
+## 9. Security & rate limiting (Security + CF — MUST)
 
-- **Rate limiting:** completion is uniquely chatty (one call per keystroke, debounced
-  client-side at best). The upstream 120 req/60s/IP limit covers the `/mcp` endpoint, but a
-  fast typist on one resource could dominate it. Since completers are in-memory (no upstream
-  call), the marginal cost is CPU only — acceptable — but document that completion shares the
-  IP budget and consider a separate, looser in-Worker counter only if telemetry shows abuse.
-- **Validate inputs:** clamp `argument.value` length (e.g. ≤ 64 chars) before matching;
-  reject non-string. Malformed `ref` → `-32602`.
-- **No information disclosure:** completers only ever surface **public catalogue data** already
-  available via tools/resources — no premise-level or non-public values. (Spec's "prevent
-  completion-based information disclosure" is satisfied by construction.)
-- **No secrets in telemetry:** record the ref+arg, never the typed value (§5.3).
+- **Rate limiting (Q5 resolved):** add the **native CF Workers Rate Limiting binding** (GA
+  2025-09) scoped to `completion/complete` — one `[[ratelimits]]` block, keyed on
+  `Mcp-Session-Id`→IP, returning an empty completion set (not an error) on trip. **The advertised
+  "120/60s upstream" limit does NOT cover completion** — completion is in-memory and never reaches
+  the upstream that enforces it, so without this binding completion is uncapped. (Machine-local
+  counter, ~0 latency; scopes to the method without throttling tool calls.)
+- **Validate all inputs** (not just `argument.value`): clamp/validate `argument.name`, `ref.name`,
+  `ref.uri`, and a global body-size cap. The Worker does no in-process validation today — the
+  handler owns it.
+- **Public-data-only invariant (normative + CI test):** completers surface ONLY public catalogue
+  values already available via tools/resources — no premise-level/non-public data. True today by
+  construction; the CI test prevents the first future prompt arg from silently breaking it.
+- **No secrets/values in telemetry** (§10).
 
-## 10. Testing / eval
+## 10. Telemetry (Cost + Perf High)
 
-- `completion/complete` with `ref/prompt` + `item`, partial `"ayam"` → returns ayam* item
-  names, `hasMore` correct, ≤ 100.
-- `state` completer: `"pul"` → `Pulau Pinang` (ASCII-fold/prefix).
+- **Sample completion at 10%** (`Math.random() < 0.10` around the completion-path `recordMcp`);
+  keep 100% on all other methods. Completion is the **highest-volume** method (per keystroke) —
+  the draft's "100% is fine (low volume)" was inverted; at 100% a viral spike is ~$135/mo of pure
+  WAE writes, ~$13.50 at 10%.
+- Record `completionRef` (`prompt:<name>#<arg>`) + match count + latency — **never the typed
+  `argument.value`** (sensitive + high-cardinality).
+- Add a value-free **`zeroMatch` counter** (the ref+arg that returned no values) so the
+  English-typist / fuzzy-quality gap is observable without logging input.
+
+## 11. Out of scope — `{item_code}` resource-template completion
+
+Leave the (deferred) `manamurah://item/{item_code}` template **uncompletable**. MCP `values` are
+inserted verbatim, so a code arg could only return bare numeric codes (unreadable) — display
+strings like `"123 — TEMBIKAI…"` violate the insert-this invariant and are un-typeable. Name→code
+resolution belongs to `search_items`. (Unanimous: type-safety, UX, architecture.)
+
+## 12. Testing / eval (built with #3)
+
+- `completion/complete` `ref/prompt` + `item`, partial `"ayam"` → ayam* names; `"watermelon"` →
+  `TEMBIKAI…` (via `name_en`); ≤100, `hasMore` correct.
+- `state` `"pul"` → `Pulau Pinang` (fold/prefix), returned **verbatim/cased**.
 - Unknown `(ref, argument)` → `{ values: [], hasMore: false }` (not an error).
 - Malformed `ref` / missing `argument` → `-32602`.
-- Capability advertised in `initialize` + root manifest.
-- Value-length clamp enforced.
-- No upstream/ES call fires during a completion (in-memory only) — guards the cost finding.
+- Input clamps enforced (`value`, `name`, `ref.*`, body size).
+- **CI gate:** no upstream/ES fetch fires during a completion (in-memory only).
+- **CI test:** public-data-only invariant (no completer wired to non-public data).
+- Capability advertised only when a live completer exists.
 
-## 11. Build sequence
+## 13. Build sequence (inside #3 Prompts)
 
-Gated on #3 (Prompts) for real value:
+1. **(Pre-req) #1 Resources** — embedded/cached catalogue incl. required `name_en` + recent-active
+   filter (Resources spec §2/§9).
+2. **#3 Prompts** — define prompts + their name-typed arguments; **attach a completer to each
+   completable argument** (this spec's §4 completers, reading the embedded catalogue §7).
+3. **Worker** — `completions: {}` capability (gated on a live completer); `completion/complete`
+   handler (§5) + types (§6); CF rate-limit binding (§9); 10%-sampled telemetry + `zeroMatch`
+   (§10); discovery surfaces.
+4. **Tests** — §12.
+5. **Deploy** — `wrangler deploy`; verify `completion/complete` against a real #3 prompt argument;
+   confirm `capabilities.completions` in `initialize`.
 
-1. **(Pre-req) #1 Resources** — provides the cached catalogue lists. (Shipping/shipped.)
-2. **(Pre-req / co-release) #3 Prompts** — provides the name-typed arguments to complete.
-3. **Worker** — `completions: {}` capability; `completion/complete` handler; `COMPLETERS`
-   registry wired to the cached catalogue; telemetry `completionRef`; discovery surfaces;
-   version bump.
-4. **Tests** — §10.
-5. **Deploy** — `wrangler deploy`; verify `completion/complete` over the live endpoint against a
-   real prompt argument; confirm `capabilities.completions` in `initialize`.
+## 14. Resolved decisions (was "open questions")
 
-## 12. Open questions
+1. **Sequencing:** fold into #3; no standalone spec/tier/version/registry; capability gated on a
+   live completer.
+2. **`{item_code}` template:** leave uncompletable (§11).
+3. **Fuzzy quality:** prefix + substring + ASCII-fold; trigram deferrable (cost-neutral in-memory);
+   English-typist gap closed by required `name_en`; add `zeroMatch` counter.
+4. **Protocol bump:** defer; ship context-free on 2024-11-05; bump server-wide later if needed.
+5. **Rate limiting:** native CF Workers Rate Limiting binding scoped to completion (the shared
+   upstream limit does not apply).
 
-1. **Sequencing (the big one):** ship #2 **with #3 (Prompts)** as recommended, or build the
-   inert completion machinery now and switch on completers as surfaces appear? (Leaning:
-   co-ship with #3 — avoid a capability with nothing to complete.)
-2. **`{item_code}` template completion:** when the Resources-v2 item template lands, do we add a
-   code completer (return `"123 — TEMBIKAI…"` display strings? or bare codes?) despite the
-   name/code mismatch, or leave that template uncompletable and rely on the prompt `item`
-   completer? (Leaning: leave the template uncompletable; name→code resolution belongs to
-   `search_items`.)
-3. **Fuzzy quality:** is flat substring/prefix over the cached catalogue good enough, or do we
-   need typo-tolerance (e.g. trigram)? (Leaning: start with prefix+substring; revisit on
-   telemetry.)
-4. **Protocol bump to 2025-06-18:** do any target clients need dependent completions
-   (state→district) badly enough to justify the protocol-version upgrade + re-validation now?
-   (Leaning: no — ship context-free on 2024-11-05.)
-5. **Rate-limit posture:** rely on the shared upstream 120/60s, or add a looser in-Worker
-   completion counter? (Leaning: rely on shared limit; completers are CPU-only/in-memory.)
+## 15. References
 
-## 13. References
-
+- Review folder: [`reviews/2026-05-22-MCP2-COMPLETIONS/`](./reviews/2026-05-22-MCP2-COMPLETIONS/)
+  (7 persona files + `CONSOLIDATION.md`).
 - Parent proposal: `docs/2026-05-22-mcp-enhancement-proposals.md` (#2)
-- Resources spec (data + template deferral): `docs/2026-05-22-spec-mcp-resources.md`
+- Resources spec (catalogue data, now incl. required `name_en` + recent-active filter):
+  `docs/2026-05-22-spec-mcp-resources.md` §2/§9.
 - MCP completion spec: <https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/completion>
-- Code anchors: capabilities `src/index.ts:632` + `:929`; method dispatch `handleMCP:701`;
-  telemetry `src/analytics.ts`; protocol version `src/index.ts:75` (`PROTOCOL_VERSION`).
+- Code anchors (current, post-`chain_mom_movers`): capabilities `src/index.ts:667` + root manifest
+  `:964`; dispatch `handleMCP:736`; server card `:909`; root manifest `:952`; `PROTOCOL_VERSION`
+  `:75`; telemetry `src/analytics.ts`; `tsconfig.json` (`noUncheckedIndexedAccess` default).
