@@ -2,7 +2,7 @@
  * GENERATED — DO NOT EDIT BY HAND.
  *
  * Source:        manamurah-data-2026/scripts/export_catalogue.sql
- * Generated at:  2026-05-23 00:58:02
+ * Generated at:  2026-05-23 02:11:19
  * Data week:     2026-05-18
  * Recency:       12 months (prices_weekly.weekdate)
  *
@@ -20,7 +20,7 @@ import type {
 	CatalogueProvenance,
 } from '../mcp-types.js';
 
-export const PROVENANCE: CatalogueProvenance = {"source":"manamurah-data-2026/scripts/export_catalogue.sql","generated_at":"2026-05-23 00:58:02","latest_week":"2026-05-18","recent_active_window":"12 months (prices_weekly.weekdate)"};
+export const PROVENANCE: CatalogueProvenance = {"source":"manamurah-data-2026/scripts/export_catalogue.sql","generated_at":"2026-05-23 02:11:19","latest_week":"2026-05-18","recent_active_window":"12 months (prices_weekly.weekdate)"};
 
 /** Data week embedded in every JSON resource payload (envelope-level freshness). */
 export const LATEST_WEEK = "2026-05-18" as const;
@@ -31,7 +31,7 @@ export const LATEST_WEEK_META: LatestWeekMeta = {"latest_weekdate":"2026-05-18",
 export const ITEMS: readonly CatalogueItem[] = [
 	{"item_code":1,"name":"AYAM BERSIH - STANDARD","name_en":"Whole chicken (standard)","unit":"1kg","item_category":"AYAM"},
 	{"item_code":2,"name":"AYAM BERSIH - SUPER","name_en":"cleaned chicken (- SUPER)","unit":"1kg","item_category":"AYAM"},
-	{"item_code":3,"name":"AYAM HIDUP","name_en":"Egg (grade A)","unit":"1kg","item_category":"AYAM"},
+	{"item_code":3,"name":"AYAM HIDUP","name_en":"live chicken","unit":"1kg","item_category":"AYAM"},
 	{"item_code":9,"name":"DAGING KAMBING BEBIRI IMPORT BERTULANG (MUTTON) (AUSTRALIA - KOTAK)","name_en":"mutton (BEBIRI IMPORT BERTULANG (MUTTON) (AUSTRALIA - KOTAK))","unit":"1kg","item_category":"DAGING"},
 	{"item_code":10,"name":"DAGING KAMBING BEBIRI IMPORT BERTULANG (MUTTON) (NEW ZEALAND - KOTAK)","name_en":"mutton (BEBIRI IMPORT BERTULANG (MUTTON) (NEW ZEALAND - KOTAK))","unit":"1kg","item_category":"DAGING"},
 	{"item_code":11,"name":"DAGING KAMBING BEBIRI IMPORT TANPA TULANG (MUTTON) (TIDAK TERMASUK PAHA - AUSTRALIA)","name_en":"mutton (BEBIRI IMPORT TANPA TULANG (MUTTON) (TIDAK TERMASUK PAHA - AUSTRALIA))","unit":"1kg","item_category":"DAGING"},
