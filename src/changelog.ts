@@ -14,6 +14,23 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.11.0] — 2026-05-23
+
+### Added
+
+- **Dependent-completion protocol rails.** \`initialize\` negotiates the protocol
+  version honestly (echoes \`2024-11-05\` or \`2025-06-18\` when requested, else the
+  server's latest \`2025-06-18\`). \`completion/complete\` accepts the optional
+  \`context.arguments\` field (protocol \`2025-06-18\`), self-gating by field
+  presence — a \`2024-11-05\` client that omits it is unaffected. Context is
+  shape-validated (\`-32602\` on malformed), per-value sanitised (non-string
+  dropped, clamped to 64 chars, ≤16 entries), never recorded in telemetry. No
+  completion-result change yet — no completer reads context until 2.12.0.
+
+### Changed
+
+- Server card \`supportedProtocolVersions\` lists both \`2025-06-18\` and \`2024-11-05\`.
+
 ## [2.10.0] — 2026-05-23
 
 ### Added

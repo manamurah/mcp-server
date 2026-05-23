@@ -74,7 +74,7 @@ import type { CompletionRef, CompletionContext } from './mcp-types.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.10.0';
+const SERVER_VERSION = '2.11.0';
 const PROTOCOL_VERSION = '2025-06-18';                         // server's preferred/latest
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2024-11-05'] as const;
 

@@ -6,6 +6,24 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.11.0] — 2026-05-23
+
+### Added
+
+- **Dependent-completion protocol rails.** `initialize` now negotiates the
+  protocol version honestly (echoes `2024-11-05` or `2025-06-18` when the client
+  requests it, else returns the server's latest `2025-06-18`). `completion/complete`
+  accepts the optional `context.arguments` field (protocol `2025-06-18`),
+  self-gating by field presence — a `2024-11-05` client that omits it is
+  unaffected. Context is shape-validated (`-32602` on malformed), per-value
+  sanitised (non-string values dropped, strings clamped to 64 chars, ≤16 entries),
+  and never recorded in telemetry. No completion-result behaviour change yet — no
+  completer reads context until 2.12.0.
+
+### Changed
+
+- Server card `supportedProtocolVersions` lists both `2025-06-18` and `2024-11-05`.
+
 ## [2.10.0] — 2026-05-23
 
 ### Added
