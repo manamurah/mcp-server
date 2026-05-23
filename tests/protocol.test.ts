@@ -50,3 +50,27 @@ test('completion: well-formed context on a context-free completer is ignored, no
 	});
 	assert.ok(a.result.completion.values.includes('Pulau Pinang'));
 });
+
+test('telemetry: neither argument.value nor context value is ever recorded', async () => {
+	const points: unknown[] = [];
+	const env = { WAE: { writeDataPoint: (p: unknown) => points.push(p) } };
+	const origRandom = Math.random;
+	Math.random = () => 0; // force the 10% completion sampler to fire
+	try {
+		await rpc(
+			'completion/complete',
+			{
+				ref: { type: 'ref/prompt', name: 'banding-bandar-vs-nasional' },
+				argument: { name: 'negeri', value: 'SECRET_VALUE_XYZ' },
+				context: { arguments: { barang: 'SECRET_CTX_QRS' } },
+			},
+			env
+		);
+	} finally {
+		Math.random = origRandom;
+	}
+	assert.ok(points.length > 0, 'a data point was recorded (sampler forced on)');
+	const blob = JSON.stringify(points);
+	assert.ok(!blob.includes('SECRET_VALUE_XYZ'), 'argument.value must not be logged');
+	assert.ok(!blob.includes('SECRET_CTX_QRS'), 'context value must not be logged');
+});
