@@ -18,12 +18,15 @@ server keeps answering `2024-11-05` clients context-free.
 This is split into **two independently-shippable phases**:
 
 - **Phase 1 — Protocol rails.** Negotiate `2025-06-18`, plumb `context.arguments` through the
-  handler to completers, validate it, keep it out of telemetry. **No user-visible behaviour change**
-  (no completer reads context yet). Ship gate: live clients still work on both protocol versions.
-- **Phase 2 — District consumer.** Embed a `DISTRICTS` dataset, add an optional `daerah` argument to
-  the `cari-termurah` prompt, and give it a context-aware completer that filters districts by the
-  chosen `negeri`. Ship gate: dependent filtering verified against live clients; national/explicit-
-  `negeri` execution unaffected.
+  handler to completers, validate it, keep it out of telemetry. **No completion-result behaviour
+  change** (no completer reads context yet) — but the **protocol-negotiation surface changes**
+  (`initialize` now echoes/advertises `2025-06-18` for clients that request it), so this phase
+  **requires live-client revalidation** (§6). Ship gate: live clients still work on both protocol
+  versions.
+- **Phase 2 — District consumer.** Embed a `DISTRICTS` dataset and add an optional `daerah` argument
+  to the **existing `cari-termurah` prompt** (shipped in 2.10.0), with a context-aware completer that
+  filters districts by the chosen `negeri`. Ship gate: dependent filtering verified against live
+  clients; national/explicit-`negeri` execution unaffected.
 
 **Do not bump the advertised protocol version before Phase 1's negotiation is in place** — the
 current `handleInitialize` returns a hardcoded version (the key risk; see §2.1).
@@ -123,16 +126,20 @@ interface CompleteParams {
 **(c) Handler self-gating + validation.** Extend `isCompleteParams` and `handleCompletion`:
 
 - If `context` is **absent** → behave exactly as today (`completer(value)`).
-- If `context` is **present**, it MUST be `{ arguments: <object of string→string> }`. Anything else
-  (non-object `context`, non-object `arguments`, non-string values) → `-32602` "Invalid completion
-  params: malformed context."
-- **Sanitise** the accepted context before passing to the completer:
-  - Drop any key whose value is not a string.
-  - Clamp each value to 64 chars (same cap as `argument.value`).
-  - Cap the number of context entries (e.g. ≤ 16) to bound work.
+- **Structural validation (→ `-32602`).** If `context` is present it MUST be an object with an
+  `arguments` property that is itself an object. A non-object `context`, or a `context` whose
+  `arguments` is not an object, is **malformed → `-32602`** "Invalid completion params: malformed
+  context." (This is the *shape* of the field, not the contents.)
+- **Per-value sanitisation (tolerant, no error).** Given a structurally-valid `context.arguments`:
+  - **Drop** any entry whose value is not a string (a single bad value never fails the whole call).
+  - **Clamp** each surviving string value to 64 chars (same cap as `argument.value`).
+  - Cap the number of entries (e.g. ≤ 16, keeping a deterministic subset) to bound work.
   - **Unknown keys are kept but harmless** — a completer only reads the sibling names it cares about
     (e.g. the `daerah` completer reads `ctx.arguments.negeri` and ignores the rest). No need to
     reject unknown keys.
+
+  Rule of thumb: **malformed *shape* → `-32602`; malformed *individual value* → dropped; valid
+  string value → clamped.** This matches the §4 table.
 - Call `completer(value, sanitisedCtx)`. Completers that ignore `ctx` (all of today's) are
   unaffected — `ctx` is an optional trailing param.
 
@@ -141,13 +148,14 @@ interface CompleteParams {
 `argument.value` or **any** `context.arguments` value (same sensitivity + high-cardinality reason).
 Sampling stays at 10%.
 
-**(e) Phase 1 ship gate.** No completer reads context yet, so behaviour is unchanged for every
-existing client. Gate = the live-client revalidation checklist (§6) passes on both protocol versions.
+**(e) Phase 1 ship gate.** No completer reads context yet, so **completion results are unchanged**
+for every existing client. The change is confined to the **protocol-negotiation surface**
+(`initialize` response + server card + root manifest). Gate = the live-client revalidation checklist
+(§6) passes on both protocol versions — specifically that no client breaks when offered `2025-06-18`.
 
 ### 3.2 Phase 2 — district consumer
 
-**(a) Embedded `DISTRICTS` dataset.** Add to the embed pipeline (data repo
-`scripts/export_catalogue.sql` → MCP `scripts/gen-catalogue.mjs` → `src/generated/catalogue.ts`):
+**(a) Embedded `DISTRICTS` dataset.**
 
 ```ts
 export interface CatalogueDistrict {
@@ -159,19 +167,34 @@ export interface CatalogueDistrict {
 export const DISTRICTS: readonly CatalogueDistrict[] = [ /* generated */ ];
 ```
 
-- **Source:** the data repo's district dimension — `district_urbanisation`
-  (stateid/districtid/state/district) joined to the states lookup, or `prices_district_weekly`'s
-  distinct (state, district) pairs. Restrict to districts that actually appear in recent price data
-  (same recent-active window the rest of the catalogue uses) so suggestions match queryable values.
+- **Source (pinned): the app's search gazetteer**, `manamurah-data-2026/data/search-gazetteer.json`
+  — its `districts` map (175 entries, each `{ state, slug }`) is the **authoritative** state↔district
+  pairing and is the same gazetteer the search-v3 Pass 0 decomposer already uses. This is preferred
+  over a raw DB pull because it is the maintained, deduped, canonical list. Generation maps each
+  entry to `{ state, state_slug, district, district_slug }` (state name/slug resolved against the
+  existing `STATES` set; `district_slug` = the gazetteer `slug`).
+- **Canonical name + queryability guard.** The gazetteer keys are folded/lowercase, but the inserted
+  `daerah` value must match what `find_cheapest`'s exact `district` filter accepts. So generation
+  cross-checks each gazetteer district against the **distinct `(state, district)` pairs in recent
+  `prices_district_weekly`** (the same recent-active window the rest of the catalogue uses) and emits
+  `district` in *that* canonical casing. Districts with no recent price rows are **dropped** (a
+  suggestion that can't be queried is worse than none). The gazetteer is the source of truth for
+  *which* districts exist; `prices_district_weekly` supplies canonical casing + the queryability
+  filter. (If a gazetteer district is missing from prices entirely, log it during generation.)
+- **Pipeline wiring.** `DISTRICTS` is produced in the embed step alongside the existing catalogue:
+  read the gazetteer JSON + the `prices_district_weekly` distinct pairs in
+  `scripts/gen-catalogue.mjs` (or emit both into `catalogue.json` from the export step) →
+  `src/generated/catalogue.ts`. Keep it in the same generated file as `ITEMS`/`STATES`.
 - **Public-data-only invariant** (carried from the completions spec §9): districts are public
   geographic labels already exposed via `find_cheapest`/`nearby_premises`. The CI public-data test
   extends to cover `DISTRICTS`.
-- Bundle-size note: ~150-200 districts × ~4 short fields is negligible vs the existing item embed.
+- Bundle-size note: ~150-175 districts × ~4 short fields is negligible vs the existing item embed.
 
-**(b) Prompt surface.** Add an **optional** `daerah` argument to `cari-termurah` (its `render`
-already issues a single `find_cheapest` call, and `find_cheapest` accepts an exact `district`
-filter). `negeri` stays optional; `daerah` is optional. When `daerah` is supplied, `render` instructs
-the model to pass it as the `district` filter (scoped within `negeri` when both are present).
+**(b) Prompt surface.** Add an **optional** `daerah` argument to the **existing `cari-termurah`
+prompt** (shipped in 2.10.0; this phase amends it, it does not create a new prompt). Its `render`
+already issues a single `find_cheapest` call, and `find_cheapest` accepts an exact `district` filter.
+`negeri` stays optional; `daerah` is optional. When `daerah` is supplied, `render` instructs the
+model to pass it as the `district` filter (scoped within `negeri` when both are present).
 
 **(c) `daerah` completer semantics (context-aware).**
 
@@ -308,11 +331,15 @@ breaks on `2025-06-18`.
 - `package.json`, `src/index.ts` `SERVER_VERSION`, `CHANGELOG.md`, `src/changelog.ts` — version bump.
 
 **Phase 2 (≈ 2.12.0):**
-- data repo `scripts/export_catalogue.sql` — emit the districts query.
-- MCP `scripts/gen-catalogue.mjs` + `scripts/catalogue.json` — include `DISTRICTS`.
-- `src/generated/catalogue.ts` — regenerated `DISTRICTS` + `CatalogueDistrict` type.
-- `src/prompts.ts` — `districtCompleter`; add optional `daerah` arg to `cari-termurah`; render text
-  for the district filter + ambiguity instruction; `MAX_LEN` entry if needed.
+- MCP `scripts/gen-catalogue.mjs` — read `manamurah-data-2026/data/search-gazetteer.json`
+  (`districts`) + the `prices_district_weekly` distinct `(state, district)` pairs (for canonical
+  casing + queryability), emit `DISTRICTS` into `scripts/catalogue.json`. (If the export step is the
+  cleaner place for the `prices_district_weekly` pull, add it to data repo
+  `scripts/export_catalogue.sql` and join in `gen-catalogue.mjs`.)
+- `src/generated/catalogue.ts` — regenerated with `DISTRICTS` + `CatalogueDistrict` type.
+- `src/prompts.ts` — `districtCompleter`; add optional `daerah` arg to the **existing**
+  `cari-termurah` prompt; render text for the district filter + ambiguity instruction; `MAX_LEN`
+  entry if needed.
 - `tests/prompts.test.ts` — Phase 2 tests.
 - `README.md`, `package.json` description, `CHANGELOG.md`, `src/changelog.ts` — docs + version bump.
 
