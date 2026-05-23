@@ -30,7 +30,7 @@ dataset = "manamurah_mcp"
 # Keyed on Mcp-Session-Id -> IP in the handler; on trip the handler returns an
 # empty completion set (not an error). period must be 10 or 60.
 [[ratelimits]]
-binding = "COMPLETION_RL"
+name = "COMPLETION_RL"
 namespace_id = "2901"
 simple = { limit = 60, period = 10 }
 
