@@ -110,6 +110,23 @@ test('completion: cari-termurah barang completer matches name_en', () => {
 	assert.ok(c('ayam').length > 0);
 });
 
+test('cari-termurah: daerah arg renders district filter + ARG markers', () => {
+	const instr = instructionText('cari-termurah', { barang: 'ayam', negeri: 'Selangor', daerah: 'Hulu Langat' });
+	assert.match(instr, /⟦ARG⟧Hulu Langat⟦\/ARG⟧/);
+	assert.match(instr, /filtered to that district/);
+});
+
+test('cari-termurah: daerah without negeri carries the ambiguity instruction', () => {
+	const instr = instructionText('cari-termurah', { barang: 'ayam', daerah: 'Pekan' });
+	assert.match(instr, /ambiguous across states|exists in more than one state/i);
+});
+
+test('cari-termurah: daerah completer resolves and is negeri-aware', () => {
+	const c = resolveCompleter({ type: 'ref/prompt', name: 'cari-termurah' }, 'daerah')!;
+	assert.ok(typeof c === 'function');
+	assert.ok(c('hu', { arguments: { negeri: 'Selangor' } }).includes('Hulu Langat'));
+});
+
 test('catalogue: DISTRICTS is populated with {state, district}', () => {
 	assert.ok(Array.isArray(DISTRICTS) && DISTRICTS.length > 50, `got ${DISTRICTS.length}`);
 	for (const d of DISTRICTS.slice(0, 5)) {
