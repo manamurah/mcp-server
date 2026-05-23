@@ -6,6 +6,21 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.12.0] — 2026-05-23
+
+### Added
+
+- **Dependent completion: `daerah` (district) on `cari-termurah`.** New optional
+  `daerah` argument whose autocomplete is filtered by the chosen `negeri` via the
+  `2025-06-18` `context.arguments` rails (2.11.0). The completer returns bare
+  canonical district names (insert-verbatim) from a new embedded `DISTRICTS`
+  dataset; with a valid `negeri` it scopes to that state, otherwise it returns a
+  global de-duped list. The prompt instructs the model to handle cross-state name
+  ambiguity when a district is given without a state.
+- **`DISTRICTS` catalogue embed.** Recent-active `(state, district)` pairs from the
+  price table (`prices_district_weekly` × `districts` × `states`, 12-month window),
+  embedded zero-network like the rest of the catalogue.
+
 ## [2.11.0] — 2026-05-23
 
 ### Added

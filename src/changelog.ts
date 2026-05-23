@@ -14,6 +14,19 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.12.0] — 2026-05-23
+
+### Added
+
+- **Dependent completion: \`daerah\` (district) on \`cari-termurah\`.** New optional
+  \`daerah\` argument whose autocomplete is filtered by the chosen \`negeri\` via the
+  \`2025-06-18\` \`context.arguments\` rails (2.11.0). Returns bare canonical district
+  names (insert-verbatim) from a new embedded \`DISTRICTS\` dataset; with a valid
+  \`negeri\` it scopes to that state, otherwise a global de-duped list. The prompt
+  handles cross-state name ambiguity when a district is given without a state.
+- **\`DISTRICTS\` catalogue embed.** Recent-active \`(state, district)\` pairs from the
+  price table, embedded zero-network like the rest of the catalogue.
+
 ## [2.11.0] — 2026-05-23
 
 ### Added
