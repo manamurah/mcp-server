@@ -15,7 +15,7 @@
  * The discipline numbers/verdicts are single-sourced from methodology.ts; the
  * render text interpolates those consts so a CI tripwire can assert no drift.
  */
-import { ITEMS, STATES } from './generated/catalogue.js';
+import { ITEMS, STATES, DISTRICTS } from './generated/catalogue.js';
 import { METHODOLOGY_MD, VERDICTS, COVERAGE, RINGKAS } from './methodology.js';
 import type {
 	PromptDef,
@@ -97,6 +97,48 @@ const itemCompleterCsv: Completer = (partial) => {
 	const head = partial.slice(0, idx + 1).replace(/\s+$/, '');
 	const last = partial.slice(idx + 1).trim();
 	return itemCompleter(last).map((m) => head + ' ' + m);
+};
+
+// ── district completer (dependent on negeri via ctx.arguments) ──
+let districtIdx: { state: string; district: string; n: string }[] | null = null;
+function districtIndex() {
+	if (!districtIdx) districtIdx = DISTRICTS.map((d) => ({ state: d.state, district: d.district, n: fold(d.district) }));
+	return districtIdx;
+}
+let stateFoldSet: Set<string> | null = null;
+function isValidState(folded: string): boolean {
+	if (!stateFoldSet) stateFoldSet = new Set(STATES.map((s) => fold(s.name)));
+	return stateFoldSet.has(folded);
+}
+
+/**
+ * District completer. Always returns BARE canonical district names (insert-verbatim
+ * invariant — the value goes straight into find_cheapest's `district` filter).
+ * With a valid ctx.arguments.negeri → only that state's districts; otherwise →
+ * global, de-duped by district name (cross-state duplicates collapse to one).
+ */
+export const districtCompleter: Completer = (partial, ctx) => {
+	const q = fold(partial.trim());
+	const negeri = ctx?.arguments?.negeri ? fold(ctx.arguments.negeri.trim()) : '';
+	const scopeToState = negeri !== '' && isValidState(negeri);
+	const scored: { district: string; score: number }[] = [];
+	for (const d of districtIndex()) {
+		if (scopeToState && fold(d.state) !== negeri) continue;
+		let score = -1;
+		if (!q) score = 0;
+		else if (d.n.startsWith(q)) score = 2;
+		else if (d.n.includes(q)) score = 1;
+		if (score >= 0) scored.push({ district: d.district, score });
+	}
+	scored.sort((a, b) => b.score - a.score || a.district.localeCompare(b.district));
+	const seen = new Set<string>();
+	const out: string[] = [];
+	for (const s of scored)
+		if (!seen.has(s.district)) {
+			seen.add(s.district);
+			out.push(s.district);
+		}
+	return out;
 };
 
 /** 16 states/FTs, prefix-then-substring, returned verbatim/cased. */

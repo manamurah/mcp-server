@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { listPrompts, getPrompt, resolveCompleter, PROMPTS, parseCsvArg } from '../src/prompts.ts';
+import { listPrompts, getPrompt, resolveCompleter, PROMPTS, parseCsvArg, districtCompleter } from '../src/prompts.ts';
 import { VERDICTS, COVERAGE, RINGKAS } from '../src/methodology.ts';
 import { DISTRICTS } from '../src/generated/catalogue.ts';
 import worker from '../src/index.ts';
@@ -117,6 +117,25 @@ test('catalogue: DISTRICTS is populated with {state, district}', () => {
 		assert.equal(typeof d.district, 'string');
 	}
 	assert.ok(DISTRICTS.some((d) => d.state === 'Selangor' && d.district === 'Hulu Langat'));
+});
+
+test('districtCompleter: negeri context filters to that state', () => {
+	const sel = districtCompleter('', { arguments: { negeri: 'Selangor' } });
+	assert.ok(sel.includes('Hulu Langat'), 'Selangor district present');
+	assert.ok(!sel.includes('Johor Bahru'), 'other-state district excluded');
+	const hu = districtCompleter('hu', { arguments: { negeri: 'Selangor' } });
+	assert.ok(hu.includes('Hulu Langat') && hu.includes('Hulu Selangor'), 'prefix match within state');
+});
+
+test('districtCompleter: no context → global de-duped bare names', () => {
+	const all = districtCompleter('hu');
+	assert.ok(all.includes('Hulu Langat'));
+	assert.equal(new Set(all).size, all.length, 'no duplicate district names in global fallback');
+});
+
+test('districtCompleter: invalid negeri falls back to global', () => {
+	const bad = districtCompleter('hu', { arguments: { negeri: 'Atlantis' } });
+	assert.ok(bad.includes('Hulu Langat'));
 });
 
 // ── injection containment (Security S1) ──
