@@ -797,6 +797,14 @@ function handleCompletion(request: MCPRequest, meta?: CallMeta): MCPResponse {
 			error: { code: -32602, message: 'Invalid completion params: expected { ref, argument }.' },
 		};
 	}
+	const ctx = sanitiseContext(params.context);
+	if (ctx === 'malformed') {
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			error: { code: -32602, message: 'Invalid completion params: malformed context.' },
+		};
+	}
 	const completer = resolveCompleter(params.ref, params.argument.name);
 	// Unknown (ref, argument) is a normal empty result, NOT an error (spec §5.2).
 	if (!completer) {
@@ -807,7 +815,7 @@ function handleCompletion(request: MCPRequest, meta?: CallMeta): MCPResponse {
 		};
 	}
 	const value = String(params.argument.value ?? '').slice(0, 64);
-	const all = completer(value);
+	const all = completer(value, ctx);
 	const values = all.slice(0, 100);
 	if (meta) {
 		const refId = params.ref.type === 'ref/prompt' ? params.ref.name : params.ref.uri;
