@@ -287,6 +287,26 @@ test('dispatch: completion/complete', async () => {
 	assert.equal(bad.error.code, -32602);
 });
 
+test('dispatch: completion/complete daerah with negeri context filters by state', async () => {
+	const r = await rpc('completion/complete', {
+		ref: { type: 'ref/prompt', name: 'cari-termurah' },
+		argument: { name: 'daerah', value: 'hu' },
+		context: { arguments: { negeri: 'Selangor' } },
+	});
+	const vals: string[] = r.result.completion.values;
+	assert.ok(vals.includes('Hulu Langat'));
+	const selSet = new Set(DISTRICTS.filter((d) => d.state === 'Selangor').map((d) => d.district));
+	assert.ok(vals.every((v) => selSet.has(v)), 'every suggestion is scoped to Selangor');
+});
+
+test('dispatch: completion/complete daerah without context → global fallback', async () => {
+	const r = await rpc('completion/complete', {
+		ref: { type: 'ref/prompt', name: 'cari-termurah' },
+		argument: { name: 'daerah', value: 'hu' },
+	});
+	assert.ok(r.result.completion.values.includes('Hulu Langat'));
+});
+
 test('dispatch: root manifest prompt_count', async () => {
 	const req = new Request('https://mcp.manamurah.com/', { method: 'GET' });
 	const resp = await worker.fetch(req, {} as never);
