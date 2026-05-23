@@ -6,6 +6,38 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.9.0] — 2026-05-23
+
+### Added
+
+- **MCP Prompts.** Three client-agnostic, static-template prompts that encode
+  the manamurah price-analysis discipline as one-click slash commands (BM
+  output, English control plane):
+  - `semak-dakwaan-harga` — fact-check a price claim, return a caveat-aware
+    verdict (sahih / tidak tepat / separa tepat / data tidak cukup).
+  - `basket-bulanan` — total a monthly grocery basket and flag the movers.
+  - `banding-bandar-vs-nasional` — state vs national price comparison.
+  - `prompts/list` + `prompts/get`; `capabilities.prompts {listChanged:false}`.
+  - `prompts/get` is data-free (pure string assembly + the embedded
+    methodology resource); the LLM pulls fresh data via tools when it runs.
+  - Coverage thresholds + verdict taxonomy are single-sourced from
+    `src/methodology.ts` (interpolated into the templates; a test guards drift).
+  - Untrusted free-text args are wrapped in hard-to-forge `⟦CLAIM⟧`/`⟦ARG⟧`
+    markers, framed as DATA-not-instructions, and delimiter chars are stripped
+    from args before interpolation.
+- **MCP Completions (argument autocomplete).** `completion/complete` +
+  `capabilities.completions {}`. Completers are co-located on prompt arguments
+  and read the embedded catalogue (zero network per keystroke): `barang`
+  matches item `name` + `name_en` (English-typist friendly), `negeri` matches
+  the 16 states/FTs (returned verbatim-cased). Native CF Workers Rate Limiting
+  binding scoped to `completion/complete`; completion telemetry sampled at 10%
+  with a `zeroMatch` (match-count) signal — argument values are never recorded.
+
+### Changed
+
+- Server card and root manifest now advertise `prompts` + `completions` and
+  report `prompt_count` (+ the prompt descriptors on the root manifest).
+
 ## [2.8.0] — 2026-05-23
 
 ### Added

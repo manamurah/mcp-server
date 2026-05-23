@@ -25,6 +25,15 @@ custom_domain = true
 binding = "WAE"
 dataset = "manamurah_mcp"
 
+# Native Workers Rate Limiting (GA) — scoped to completion/complete, the only
+# in-memory per-keystroke method (the upstream 120/60s limit never sees it).
+# Keyed on Mcp-Session-Id -> IP in the handler; on trip the handler returns an
+# empty completion set (not an error). period must be 10 or 60.
+[[ratelimits]]
+binding = "COMPLETION_RL"
+namespace_id = "2901"
+simple = { limit = 60, period = 10 }
+
 # Environment variants (inherit [vars] unless overridden).
 [env.staging]
 name = "manamurah-mcp-server-staging"

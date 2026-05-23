@@ -14,6 +14,30 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.9.0] — 2026-05-23
+
+### Added
+
+- **MCP Prompts.** Three static-template slash-command prompts encoding the
+  manamurah price-analysis discipline (BM output, English control plane):
+  \`semak-dakwaan-harga\` (fact-check a price claim → verdict),
+  \`basket-bulanan\` (monthly basket cost), \`banding-bandar-vs-nasional\`
+  (state vs national). \`prompts/list\` + \`prompts/get\`;
+  \`capabilities.prompts {listChanged:false}\`. \`prompts/get\` is data-free
+  (string assembly + embedded methodology); coverage thresholds + verdicts are
+  single-sourced from methodology.ts; untrusted args are delimiter-wrapped and
+  framed as DATA-not-instructions.
+- **MCP Completions.** \`completion/complete\` + \`capabilities.completions {}\`.
+  Completers co-located on prompt arguments, reading the embedded catalogue
+  (zero network): \`barang\` matches item name + name_en, \`negeri\` matches the
+  16 states. Native CF rate-limit binding on \`completion/complete\`; completion
+  telemetry sampled at 10% (argument values never recorded).
+
+### Changed
+
+- Server card + root manifest advertise \`prompts\` + \`completions\` and report
+  \`prompt_count\`.
+
 ## [2.8.0] — 2026-05-23
 
 ### Added

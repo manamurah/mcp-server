@@ -63,6 +63,8 @@ interface MCPResponse {
 import { CHANGELOG_MARKDOWN } from './changelog.js';
 import { recordMcp, type CallMeta } from './analytics.js';
 import { RESOURCES, listResources, readResource } from './resources.js';
+import { PROMPTS, listPrompts, getPrompt, resolveCompleter } from './prompts.js';
+import type { CompletionRef } from './mcp-types.js';
 
 // ---------------------------------------------------------------------
 // Server identity — single source of truth for serverInfo.version,
@@ -72,7 +74,7 @@ import { RESOURCES, listResources, readResource } from './resources.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.8.0';
+const SERVER_VERSION = '2.9.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -89,11 +91,18 @@ const ROOT_VERSIONING = {
 	changelog: '/changelog',
 } as const;
 
+/** Native CF Workers Rate Limiting binding (GA). Minimal structural type. */
+interface RateLimitBinding {
+	limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 interface Env {
 	/** Base URL for the proxy surface. Default: https://manamurah.com */
 	MANAMURAH_API_BASE?: string;
 	/** Analytics Engine dataset (manamurah_mcp) for usage telemetry. */
 	WAE?: AnalyticsEngineDataset;
+	/** Rate limiter scoped to completion/complete (optional — absent in tests/dev). */
+	COMPLETION_RL?: RateLimitBinding;
 }
 
 // ---------------------------------------------------------------------
@@ -665,7 +674,12 @@ function handleInitialize(request: MCPRequest): MCPResponse {
 		id: request.id,
 		result: {
 			protocolVersion: PROTOCOL_VERSION,
-			capabilities: { tools: {}, prompts: {}, resources: { listChanged: false } },
+			capabilities: {
+				tools: {},
+				prompts: { listChanged: false },
+				resources: { listChanged: false },
+				completions: {},
+			},
 			serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
 		},
 	};
@@ -698,6 +712,82 @@ function handleResourcesRead(request: MCPRequest, meta?: CallMeta): MCPResponse 
 	}
 	if (meta) meta.resource = result.resourceName;
 	return { jsonrpc: '2.0', id: request.id, result: { contents: result.contents } };
+}
+
+function handlePromptsGet(request: MCPRequest, meta?: CallMeta): MCPResponse {
+	const params = (request.params ?? {}) as { name?: unknown; arguments?: unknown };
+	if (typeof params.name !== 'string' || params.name.length === 0) {
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			error: { code: -32602, message: 'Missing prompt name. Call prompts/list for the catalogue.' },
+		};
+	}
+	const rawArgs =
+		params.arguments && typeof params.arguments === 'object'
+			? (params.arguments as Record<string, unknown>)
+			: {};
+	const res = getPrompt(params.name, rawArgs);
+	if (!res.ok) {
+		return { jsonrpc: '2.0', id: request.id, error: { code: res.code, message: res.message } };
+	}
+	if (meta) meta.prompt = params.name;
+	return {
+		jsonrpc: '2.0',
+		id: request.id,
+		result: { description: res.description, messages: res.messages },
+	};
+}
+
+interface CompleteParams {
+	ref: CompletionRef;
+	argument: { name: string; value: string };
+}
+
+function isCompleteParams(p: unknown): p is CompleteParams {
+	if (!p || typeof p !== 'object') return false;
+	const o = p as Record<string, unknown>;
+	const ref = o.ref as Record<string, unknown> | undefined;
+	if (!ref || typeof ref !== 'object') return false;
+	const okRef =
+		(ref.type === 'ref/prompt' && typeof ref.name === 'string') ||
+		(ref.type === 'ref/resource' && typeof ref.uri === 'string');
+	if (!okRef) return false;
+	const arg = o.argument as Record<string, unknown> | undefined;
+	return !!arg && typeof arg === 'object' && typeof arg.name === 'string';
+}
+
+function handleCompletion(request: MCPRequest, meta?: CallMeta): MCPResponse {
+	const params = request.params;
+	if (!isCompleteParams(params)) {
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			error: { code: -32602, message: 'Invalid completion params: expected { ref, argument }.' },
+		};
+	}
+	const completer = resolveCompleter(params.ref, params.argument.name);
+	// Unknown (ref, argument) is a normal empty result, NOT an error (spec §5.2).
+	if (!completer) {
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			result: { completion: { values: [], total: 0, hasMore: false } },
+		};
+	}
+	const value = String(params.argument.value ?? '').slice(0, 64);
+	const all = completer(value);
+	const values = all.slice(0, 100);
+	if (meta) {
+		const refId = params.ref.type === 'ref/prompt' ? params.ref.name : params.ref.uri;
+		meta.completionRef = `${params.ref.type === 'ref/prompt' ? 'prompt' : 'resource'}:${refId}#${params.argument.name}`;
+		meta.matchCount = all.length;
+	}
+	return {
+		jsonrpc: '2.0',
+		id: request.id,
+		result: { completion: { values, total: all.length, hasMore: all.length > 100 } },
+	};
 }
 
 async function handleToolCall(
@@ -767,7 +857,11 @@ async function handleMCP(
 			case 'tools/call':
 				return await handleToolCall(request, baseUrl, meta);
 			case 'prompts/list':
-				return { jsonrpc: '2.0', id: request.id, result: { prompts: [] } };
+				return { jsonrpc: '2.0', id: request.id, result: { prompts: listPrompts() } };
+			case 'prompts/get':
+				return handlePromptsGet(request, meta);
+			case 'completion/complete':
+				return handleCompletion(request, meta);
 			case 'resources/list':
 				return { jsonrpc: '2.0', id: request.id, result: { resources: listResources() } };
 			case 'resources/read':
@@ -878,6 +972,39 @@ export default {
 				return new Response(null, { status: 202, headers: CORS_HEADERS });
 			}
 
+			// Rate-limit completion/complete (highest-volume, in-memory method —
+			// the upstream 120/60s limit never sees it). Native CF binding, keyed
+			// on Mcp-Session-Id → IP. On trip, return an empty completion set (not
+			// an error). Fail-open if the binding is absent or throws.
+			const isCompletion = body?.method === 'completion/complete';
+			if (isCompletion && env.COMPLETION_RL) {
+				const key =
+					request.headers.get('mcp-session-id') ||
+					request.headers.get('cf-connecting-ip') ||
+					'anon';
+				try {
+					const { success } = await env.COMPLETION_RL.limit({ key });
+					if (!success) {
+						if (Math.random() < 0.1)
+							recordMcp(env.WAE, {
+								method: 'completion/complete',
+								ok: true,
+								completionRef: '<ratelimited>',
+								matchCount: 0,
+								userAgent,
+								latencyMs: Date.now() - startedAt,
+							});
+						return jsonResponse({
+							jsonrpc: '2.0',
+							id: body.id,
+							result: { completion: { values: [], total: 0, hasMore: false } },
+						});
+					}
+				} catch {
+					// fail open — availability over strict limiting
+				}
+			}
+
 			const response = await handleMCP(body, baseUrl, meta);
 			// clientInfo is only present on the `initialize` request; for
 			// every other method it stays '-' (the per-call client signal
@@ -890,18 +1017,25 @@ export default {
 								| undefined
 						)?.clientInfo
 					: undefined;
-			recordMcp(env.WAE, {
-				method: body?.method,
-				tool: meta.tool,
-				resource: meta.resource,
-				ok: !response.error,
-				errorCode: response.error?.code,
-				backendStatus: meta.backendStatus,
-				clientName: clientInfo?.name,
-				clientVersion: clientInfo?.version,
-				userAgent,
-				latencyMs: Date.now() - startedAt,
-			});
+			// Completion is per-keystroke (highest volume) — sample at 10%; keep
+			// 100% on every other method.
+			if (!isCompletion || Math.random() < 0.1) {
+				recordMcp(env.WAE, {
+					method: body?.method,
+					tool: meta.tool,
+					resource: meta.resource,
+					prompt: meta.prompt,
+					completionRef: meta.completionRef,
+					matchCount: meta.matchCount,
+					ok: !response.error,
+					errorCode: response.error?.code,
+					backendStatus: meta.backendStatus,
+					clientName: clientInfo?.name,
+					clientVersion: clientInfo?.version,
+					userAgent,
+					latencyMs: Date.now() - startedAt,
+				});
+			}
 			return jsonResponse(response);
 		}
 
@@ -937,7 +1071,7 @@ export default {
 				version: SERVER_VERSION,
 				title: 'ManaMurah MCP Server',
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, chain monthly movers, region gap ranker, more) + 6 reference resources (item catalogue, states, categories, chains, data freshness, methodology), sourced from data.gov.my PriceCatcher.',
+					'MCP server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, chain monthly movers, region gap ranker, more) + 6 reference resources (item catalogue, states, categories, chains, data freshness, methodology) + 3 guided prompts (fact-check a price claim, monthly basket cost, state-vs-national) with argument autocomplete, sourced from data.gov.my PriceCatcher.',
 				websiteUrl: 'https://mcp.manamurah.com/',
 				repository: {
 					url: 'https://github.com/manamurah/mcp-server',
@@ -966,6 +1100,7 @@ export default {
 					rate_limit: '120 req / 60s per IP',
 					tool_count: TOOLS.length,
 					resource_count: RESOURCES.length,
+					prompt_count: PROMPTS.length,
 				},
 			});
 		}
@@ -982,7 +1117,7 @@ export default {
 				name: SERVER_PACKAGE_NAME,
 				version: SERVER_VERSION,
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data. 15 strongly-typed tools proxied from manamurah.com, plus 6 embedded reference resources.',
+					'MCP server for Malaysian PriceCatcher consumer price data. 15 strongly-typed tools proxied from manamurah.com, plus 6 embedded reference resources and 3 guided prompts with argument autocomplete.',
 				publisher: 'manamurah.com',
 				license: 'MIT',
 
@@ -994,7 +1129,12 @@ export default {
 
 				// Protocol
 				protocolVersion: PROTOCOL_VERSION,
-				capabilities: { tools: {}, prompts: {}, resources: { listChanged: false } },
+				capabilities: {
+					tools: {},
+					prompts: { listChanged: false },
+					resources: { listChanged: false },
+					completions: {},
+				},
 				endpoints: {
 					mcp: '/mcp',
 					changelog: '/changelog',
@@ -1009,6 +1149,11 @@ export default {
 				// resources/read; payloads are embedded reference data, no prices).
 				resource_count: RESOURCES.length,
 				resources: listResources(),
+
+				// Guided prompts — slash-command templates (run via prompts/get;
+				// arguments autocomplete via completion/complete). BM output.
+				prompt_count: PROMPTS.length,
+				prompts: listPrompts(),
 
 				// Versioning policy
 				versioning: ROOT_VERSIONING,
