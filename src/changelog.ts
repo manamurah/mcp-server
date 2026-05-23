@@ -14,6 +14,17 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.10.0] — 2026-05-23
+
+### Added
+
+- **\`cari-termurah\` prompt (4th).** "Where is X cheapest" — the README's
+  headline demand. Low fan-out (<= ~2 calls): resolve the item from the
+  embedded catalogue, then one \`find_cheapest\` call (optionally state-scoped
+  via the \`negeri\` arg). \`barang\` + \`negeri\` arguments autocomplete from the
+  embedded catalogue. Carries the mention-with-caveat coverage floor (n=N) and
+  a wide-spread variant-mixing caveat; data-free \`render\` like the other three.
+
 ## [2.9.0] — 2026-05-23
 
 ### Added

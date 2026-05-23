@@ -74,7 +74,7 @@ import type { CompletionRef } from './mcp-types.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.9.0';
+const SERVER_VERSION = '2.10.0';
 const PROTOCOL_VERSION = '2024-11-05';
 
 const ROOT_VERSIONING = {
@@ -1071,7 +1071,7 @@ export default {
 				version: SERVER_VERSION,
 				title: 'ManaMurah MCP Server',
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, chain monthly movers, region gap ranker, more) + 6 reference resources (item catalogue, states, categories, chains, data freshness, methodology) + 3 guided prompts (fact-check a price claim, monthly basket cost, state-vs-national) with argument autocomplete, sourced from data.gov.my PriceCatcher.',
+					'MCP server for Malaysian PriceCatcher consumer price data — 15 strongly-typed tools (search items, find cheapest premise, price history, MoM/YoY trends, basket watch, top movers, chain monthly movers, region gap ranker, more) + 6 reference resources (item catalogue, states, categories, chains, data freshness, methodology) + 4 guided prompts (fact-check a price claim, monthly basket cost, state-vs-national, where-is-cheapest) with argument autocomplete, sourced from data.gov.my PriceCatcher.',
 				websiteUrl: 'https://mcp.manamurah.com/',
 				repository: {
 					url: 'https://github.com/manamurah/mcp-server',
@@ -1117,7 +1117,7 @@ export default {
 				name: SERVER_PACKAGE_NAME,
 				version: SERVER_VERSION,
 				description:
-					'MCP server for Malaysian PriceCatcher consumer price data. 15 strongly-typed tools proxied from manamurah.com, plus 6 embedded reference resources and 3 guided prompts with argument autocomplete.',
+					'MCP server for Malaysian PriceCatcher consumer price data. 15 strongly-typed tools proxied from manamurah.com, plus 6 embedded reference resources and 4 guided prompts with argument autocomplete.',
 				publisher: 'manamurah.com',
 				license: 'MIT',
 

@@ -9,7 +9,15 @@ import { listPrompts, getPrompt, resolveCompleter, PROMPTS, parseCsvArg } from '
 import { VERDICTS, COVERAGE, RINGKAS } from '../src/methodology.ts';
 import worker from '../src/index.ts';
 
-const NAMES = ['semak-dakwaan-harga', 'basket-bulanan', 'banding-bandar-vs-nasional'];
+const NAMES = ['semak-dakwaan-harga', 'basket-bulanan', 'banding-bandar-vs-nasional', 'cari-termurah'];
+
+/** Minimal valid args per prompt — covers the required fields for render/parity loops. */
+const SAMPLE: Record<string, Record<string, string>> = {
+	'semak-dakwaan-harga': { dakwaan: 'ayam naik 50%' },
+	'basket-bulanan': { barang: 'ayam, telur' },
+	'banding-bandar-vs-nasional': { barang: 'ayam', negeri: 'Selangor' },
+	'cari-termurah': { barang: 'ayam', negeri: 'Selangor' },
+};
 
 async function rpc(method: string, params?: unknown) {
 	const req = new Request('https://mcp.manamurah.com/mcp', {
@@ -31,9 +39,9 @@ const instructionText = (name: string, args: Record<string, string>): string => 
 
 // ── prompts/list ──
 
-test('prompts/list: 3 prompts, required flags, bilingual descriptions noting BM', () => {
+test('prompts/list: 4 prompts, required flags, bilingual descriptions noting BM', () => {
 	const list = listPrompts();
-	assert.equal(list.length, 3);
+	assert.equal(list.length, 4);
 	assert.deepEqual(list.map((p) => p.name).sort(), [...NAMES].sort());
 	for (const p of list) {
 		assert.ok(p.title.length > 0 && p.description.length > 0);
@@ -82,6 +90,25 @@ test('prompts/get: dakwaan length clamped to 2KB', () => {
 	assert.ok(m && m[1].length <= 2048, `clamped to ${m?.[1].length}`);
 });
 
+test('prompts/get cari-termurah: find_cheapest + coverage caveat, no methodology block', () => {
+	const r = getPrompt('cari-termurah', { barang: 'ayam', negeri: 'Selangor' });
+	assert.ok(r.ok);
+	if (!r.ok) return;
+	// lookup prompt — no embedded methodology resource (it gives no verdict)
+	assert.ok(!r.messages.some((m) => m.content.type === 'resource'));
+	const instr = instructionText('cari-termurah', { barang: 'ayam', negeri: 'Selangor' });
+	assert.match(instr, /⟦ARG⟧ayam⟦\/ARG⟧/);
+	assert.match(instr, /⟦ARG⟧Selangor⟦\/ARG⟧/);
+	assert.match(instr, /find_cheapest/);
+	assert.ok(instr.includes(String(COVERAGE.mentionWithCaveatMinPremises)));
+});
+
+test('completion: cari-termurah barang completer matches name_en', () => {
+	const c = resolveCompleter({ type: 'ref/prompt', name: 'cari-termurah' }, 'barang')!;
+	assert.ok(typeof c === 'function');
+	assert.ok(c('ayam').length > 0);
+});
+
 // ── injection containment (Security S1) ──
 
 test('injection: crafted dakwaan cannot forge the markers', () => {
@@ -109,13 +136,7 @@ test('render performs no fetch', () => {
 	};
 	try {
 		for (const name of NAMES) {
-			const args =
-				name === 'semak-dakwaan-harga'
-					? { dakwaan: 'test' }
-					: name === 'basket-bulanan'
-						? { barang: 'ayam, telur' }
-						: { barang: 'ayam', negeri: 'Selangor' };
-			const r = getPrompt(name, args);
+			const r = getPrompt(name, SAMPLE[name]);
 			assert.ok(r.ok, `${name} renders without fetch`);
 		}
 	} finally {
@@ -141,13 +162,7 @@ test('tool-name parity: render tool refs exist in TOOLS', async () => {
 	const valid = new Set<string>((tl.result.tools as { name: string }[]).map((t) => t.name));
 	const re = /`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`/g;
 	for (const name of NAMES) {
-		const args =
-			name === 'semak-dakwaan-harga'
-				? { dakwaan: 'x' }
-				: name === 'basket-bulanan'
-					? { barang: 'ayam' }
-					: { barang: 'ayam', negeri: 'Selangor' };
-		const r = getPrompt(name, args);
+		const r = getPrompt(name, SAMPLE[name]);
 		assert.ok(r.ok);
 		if (!r.ok) continue;
 		const all = r.messages
@@ -198,9 +213,9 @@ test('dispatch: initialize advertises prompts + completions', async () => {
 	assert.deepEqual(r.result.capabilities.completions, {});
 });
 
-test('dispatch: prompts/list returns 3', async () => {
+test('dispatch: prompts/list returns 4', async () => {
 	const r = await rpc('prompts/list');
-	assert.equal(r.result.prompts.length, 3);
+	assert.equal(r.result.prompts.length, 4);
 });
 
 test('dispatch: prompts/get returns messages; missing arg → -32602', async () => {

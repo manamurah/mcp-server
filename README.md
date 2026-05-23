@@ -269,7 +269,8 @@ MANAMURAH_API_BASE = "https://staging.manamurah.com"
 - **Transport:** HTTP POST at `/mcp`, JSON-RPC 2.0. CORS-open so
   browser-based MCP clients work without a proxy.
 - **Methods supported:** `initialize`, `tools/list`, `tools/call`,
-  `prompts/list` (empty), `resources/list` (empty), `ping`.
+  `prompts/list`, `prompts/get`, `resources/list`, `resources/read`,
+  `resources/templates/list`, `completion/complete`, `ping`.
 - **Tool response shape:** MCP `content: [{ type: "text", text: ... }]`
   blocks with the raw JSON payload also attached as
   `structuredContent` for clients that prefer it.

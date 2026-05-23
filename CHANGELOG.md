@@ -6,6 +6,25 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.10.0] — 2026-05-23
+
+### Added
+
+- **`cari-termurah` prompt (4th).** "Where is X cheapest" — the README's
+  headline demand and the designated fast-follow from the prompts spec.
+  Low fan-out (≤ ~2 calls): resolve the item from the embedded catalogue,
+  then a single `find_cheapest` call, optionally scoped to a state via the
+  `negeri` argument. Both `barang` and `negeri` autocomplete from the embedded
+  catalogue (zero network). Carries the mention-with-caveat coverage floor
+  (print `n=N`) and a wide-spread variant-mixing caveat; `render` is data-free
+  like the other three prompts.
+
+### Changed
+
+- Stale protocol-notes line in `README.md` now lists the full method set
+  (`prompts/get`, `resources/read`, `completion/complete`, …) instead of
+  the obsolete "prompts/list (empty), resources/list (empty)".
+
 ## [2.9.0] — 2026-05-23
 
 ### Added
