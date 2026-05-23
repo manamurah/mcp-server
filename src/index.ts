@@ -75,7 +75,15 @@ import type { CompletionRef } from './mcp-types.js';
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
 const SERVER_VERSION = '2.10.0';
-const PROTOCOL_VERSION = '2024-11-05';
+const PROTOCOL_VERSION = '2025-06-18';                         // server's preferred/latest
+const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2024-11-05'] as const;
+
+function negotiateProtocol(requested: unknown): string {
+	return typeof requested === 'string' &&
+		(SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
+		? requested
+		: PROTOCOL_VERSION;
+}
 
 const ROOT_VERSIONING = {
 	scheme: 'semver',
@@ -669,11 +677,12 @@ async function callUpstream(
 // ---------------------------------------------------------------------
 
 function handleInitialize(request: MCPRequest): MCPResponse {
+	const requested = (request.params as { protocolVersion?: unknown } | undefined)?.protocolVersion;
 	return {
 		jsonrpc: '2.0',
 		id: request.id,
 		result: {
-			protocolVersion: PROTOCOL_VERSION,
+			protocolVersion: negotiateProtocol(requested),
 			capabilities: {
 				tools: {},
 				prompts: { listChanged: false },
@@ -1088,7 +1097,7 @@ export default {
 					{
 						type: 'streamable-http',
 						url: 'https://mcp.manamurah.com/mcp',
-						supportedProtocolVersions: [PROTOCOL_VERSION],
+						supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 					},
 				],
 				_meta: {
