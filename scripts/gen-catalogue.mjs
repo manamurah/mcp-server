@@ -45,7 +45,7 @@ try {
 	fail(`catalogue.json is not valid JSON: ${e.message}`);
 }
 
-for (const k of ['latest_week', 'items', 'states', 'categories', 'chains']) {
+for (const k of ['latest_week', 'items', 'states', 'categories', 'chains', 'districts']) {
 	if (cat[k] == null) fail(`catalogue.json missing top-level "${k}"`);
 }
 if (!Array.isArray(cat.items) || cat.items.length === 0) fail('items[] empty');
@@ -100,6 +100,11 @@ const chains = cat.chains
 	}))
 	.sort((a, b) => b.premise_count - a.premise_count || a.chain.localeCompare(b.chain));
 
+// ── districts: distinct (state, district), recent-active; sorted ──
+const districts = (cat.districts ?? [])
+	.map((d) => ({ state: String(d.state), district: String(d.district) }))
+	.sort((a, b) => a.state.localeCompare(b.state) || a.district.localeCompare(b.district));
+
 const latestWeekMeta = {
 	latest_weekdate: String(cat.latest_week),
 	premises_reporting: num(cat.premises_reporting),
@@ -134,6 +139,7 @@ import type {
 	CatalogueState,
 	CatalogueCategory,
 	CatalogueChain,
+	CatalogueDistrict,
 	LatestWeekMeta,
 	CatalogueProvenance,
 } from '../mcp-types.js';
@@ -164,12 +170,17 @@ ${arr(categories)}
 export const CHAINS: readonly CatalogueChain[] = [
 ${arr(chains)}
 ];
+
+/** Recent-active districts (state, district), sorted by state then district. */
+export const DISTRICTS: readonly CatalogueDistrict[] = [
+${arr(districts)}
+];
 `;
 
 writeFileSync(OUT, out, 'utf8');
 console.log(
 	`gen-catalogue: wrote ${OUT}\n` +
-		`  items=${items.length} states=${states.length} categories=${categories.length} chains=${chains.length}\n` +
+		`  items=${items.length} states=${states.length} categories=${categories.length} chains=${chains.length} districts=${districts.length}\n` +
 		`  latest_week=${provenance.latest_week} premises_reporting=${latestWeekMeta.premises_reporting} items_with_data=${latestWeekMeta.items_with_data}\n` +
 		`  output bytes=${out.length}`
 );

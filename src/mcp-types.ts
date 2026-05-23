@@ -68,6 +68,11 @@ export interface CatalogueChain {
 	premise_count: number;
 }
 
+export interface CatalogueDistrict {
+	state: string; // canonical state name, matches CatalogueState.name
+	district: string; // canonical district name — the value find_cheapest's `district` expects
+}
+
 /** Frozen 3-field contract for the `manamurah://meta/latest-week` resource. */
 export interface LatestWeekMeta {
 	latest_weekdate: string;

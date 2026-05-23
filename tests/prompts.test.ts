@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 
 import { listPrompts, getPrompt, resolveCompleter, PROMPTS, parseCsvArg } from '../src/prompts.ts';
 import { VERDICTS, COVERAGE, RINGKAS } from '../src/methodology.ts';
+import { DISTRICTS } from '../src/generated/catalogue.ts';
 import worker from '../src/index.ts';
 
 const NAMES = ['semak-dakwaan-harga', 'basket-bulanan', 'banding-bandar-vs-nasional', 'cari-termurah'];
@@ -107,6 +108,15 @@ test('completion: cari-termurah barang completer matches name_en', () => {
 	const c = resolveCompleter({ type: 'ref/prompt', name: 'cari-termurah' }, 'barang')!;
 	assert.ok(typeof c === 'function');
 	assert.ok(c('ayam').length > 0);
+});
+
+test('catalogue: DISTRICTS is populated with {state, district}', () => {
+	assert.ok(Array.isArray(DISTRICTS) && DISTRICTS.length > 50, `got ${DISTRICTS.length}`);
+	for (const d of DISTRICTS.slice(0, 5)) {
+		assert.equal(typeof d.state, 'string');
+		assert.equal(typeof d.district, 'string');
+	}
+	assert.ok(DISTRICTS.some((d) => d.state === 'Selangor' && d.district === 'Hulu Langat'));
 });
 
 // ── injection containment (Security S1) ──
