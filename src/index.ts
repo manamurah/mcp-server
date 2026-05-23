@@ -64,7 +64,7 @@ import { CHANGELOG_MARKDOWN } from './changelog.js';
 import { recordMcp, type CallMeta } from './analytics.js';
 import { RESOURCES, listResources, readResource } from './resources.js';
 import { PROMPTS, listPrompts, getPrompt, resolveCompleter } from './prompts.js';
-import type { CompletionRef } from './mcp-types.js';
+import type { CompletionRef, CompletionContext } from './mcp-types.js';
 
 // ---------------------------------------------------------------------
 // Server identity — single source of truth for serverInfo.version,
@@ -751,6 +751,7 @@ function handlePromptsGet(request: MCPRequest, meta?: CallMeta): MCPResponse {
 interface CompleteParams {
 	ref: CompletionRef;
 	argument: { name: string; value: string };
+	context?: unknown; // validated/narrowed by sanitiseContext (presence is optional)
 }
 
 function isCompleteParams(p: unknown): p is CompleteParams {
@@ -764,6 +765,27 @@ function isCompleteParams(p: unknown): p is CompleteParams {
 	if (!okRef) return false;
 	const arg = o.argument as Record<string, unknown> | undefined;
 	return !!arg && typeof arg === 'object' && typeof arg.name === 'string';
+}
+
+/**
+ * Narrow + sanitise the optional `context.arguments` (protocol 2025-06-18).
+ * Returns 'malformed' for a bad SHAPE (→ -32602), `undefined` when absent, or a
+ * sanitised context: non-string values dropped, strings clamped to 64 chars,
+ * ≤16 entries (deterministic insertion order). Per-value issues never error.
+ */
+function sanitiseContext(raw: unknown): CompletionContext | undefined | 'malformed' {
+	if (raw === undefined || raw === null) return undefined;
+	if (typeof raw !== 'object') return 'malformed';
+	const args = (raw as Record<string, unknown>).arguments;
+	if (!args || typeof args !== 'object') return 'malformed';
+	const out: Record<string, string> = {};
+	let n = 0;
+	for (const [k, v] of Object.entries(args as Record<string, unknown>)) {
+		if (typeof v !== 'string') continue;
+		if (n++ >= 16) break;
+		out[k] = v.slice(0, 64);
+	}
+	return { arguments: out };
 }
 
 function handleCompletion(request: MCPRequest, meta?: CallMeta): MCPResponse {

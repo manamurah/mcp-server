@@ -26,3 +26,27 @@ test('initialize: unknown/missing version → server latest 2025-06-18', async (
 	const b = await rpc('initialize', {});
 	assert.equal(b.result.protocolVersion, '2025-06-18');
 });
+
+test('completion: malformed context shape → -32602', async () => {
+	const a = await rpc('completion/complete', {
+		ref: { type: 'ref/prompt', name: 'banding-bandar-vs-nasional' },
+		argument: { name: 'negeri', value: 'pul' },
+		context: 'not-an-object',
+	});
+	assert.equal(a.error.code, -32602);
+	const b = await rpc('completion/complete', {
+		ref: { type: 'ref/prompt', name: 'banding-bandar-vs-nasional' },
+		argument: { name: 'negeri', value: 'pul' },
+		context: { arguments: 'nope' },
+	});
+	assert.equal(b.error.code, -32602);
+});
+
+test('completion: well-formed context on a context-free completer is ignored, not error', async () => {
+	const a = await rpc('completion/complete', {
+		ref: { type: 'ref/prompt', name: 'banding-bandar-vs-nasional' },
+		argument: { name: 'negeri', value: 'pul' },
+		context: { arguments: { barang: 'ayam' } },
+	});
+	assert.ok(a.result.completion.values.includes('Pulau Pinang'));
+});
