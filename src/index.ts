@@ -28,6 +28,7 @@ interface MCPTool {
 		type: 'object';
 		properties: Record<string, JSONSchemaProp>;
 		required?: string[];
+		anyOf?: { required: string[] }[];
 		additionalProperties?: boolean;
 	};
 }
@@ -74,7 +75,7 @@ import type { CompletionRef, CompletionContext } from './mcp-types.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.12.0';
+const SERVER_VERSION = '2.13.0';
 const PROTOCOL_VERSION = '2025-06-18';                         // server's preferred/latest
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2024-11-05'] as const;
 
@@ -183,14 +184,34 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'find_cheapest',
 		description:
-			"Return up to 10 premises with the lowest price for a specific item this week, sorted ascending. Use when the user asks 'where is X cheapest' or 'which shop has the best price for X'. Requires item_code — call search_items first if the user only gave a name.",
+			"Return up to 10 premises with the lowest price this week, cheapest first. Anchor EITHER on a numeric item_code (one SKU — call search_items first to resolve a name) OR on a category slug (e.g. 'BERAS' for rice, 'AYAM' for chicken) to search across every SKU in that category and return each store's single cheapest one — use category when the user names a staple ('rice', 'chicken') rather than a specific product. For 'cheapest near me / near <place>', pass latitude+longitude (geocode the place yourself; don't ask for coordinates) with an optional radius_km. PriceCatcher samples only a few SKUs per store each week, so a narrow geo/chain/SKU filter is often empty — when that happens the query AUTO-WIDENS (drops chain, expands the radius, then falls back to district/state/national) and reports how far in `widened`+`widen_note`: surface that caveat instead of claiming a store has no stock.",
 		inputSchema: {
 			type: 'object',
 			properties: {
 				item_code: {
 					type: 'integer',
 					minimum: 1,
-					description: 'Numeric item ID from search_items.',
+					description: 'Numeric item ID from search_items. Omit when using category.',
+				},
+				category: {
+					type: 'string',
+					maxLength: 64,
+					description:
+						"item_category slug to search across all its SKUs (e.g. 'BERAS', 'AYAM'). Returns each store's single cheapest SKU. Use instead of item_code for staple categories.",
+				},
+				latitude: {
+					type: 'number',
+					minimum: 0,
+					maximum: 8,
+					description:
+						"With longitude, restrict to stores near this coordinate. Geocode a named place (e.g. 'Kota Kemuning') yourself; do not ask the user for coordinates.",
+				},
+				longitude: { type: 'number', minimum: 99, maximum: 120 },
+				radius_km: {
+					type: 'number',
+					minimum: 0.1,
+					maximum: 50,
+					description: 'Search radius in km (default 5). Auto-widens if nothing is found nearby.',
 				},
 				state: { type: 'string', maxLength: 64, description: STATES_HINT },
 				district: {
@@ -209,7 +230,7 @@ const TOOLS: MCPTool[] = [
 					description: 'Filter by chain category.',
 				},
 			},
-			required: ['item_code'],
+			anyOf: [{ required: ['item_code'] }, { required: ['category'] }],
 			additionalProperties: false,
 		},
 	},

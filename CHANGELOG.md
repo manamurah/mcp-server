@@ -6,6 +6,26 @@ policy lives at `GET https://mcp.manamurah.com/` under the `versioning`
 key — keep this file in sync with the `current` version reported there
 and the `serverInfo.version` returned by the MCP `initialize` method.
 
+## [2.13.0] — 2026-05-26
+
+### Added
+
+- **`find_cheapest`: category mode.** New `category` argument (e.g. `BERAS`,
+  `AYAM`) as an alternative to `item_code` — searches across every SKU in that
+  item_category and returns each store's single cheapest one. Use it when the
+  user names a staple ("rice", "chicken") rather than one specific product.
+- **`find_cheapest`: geo radius.** New `latitude`/`longitude`/`radius_km`
+  arguments restrict results to stores near a coordinate ("cheapest near me");
+  rows carry `distance_km`. The model geocodes a named place itself.
+- **`find_cheapest`: auto-widening.** When the most-specific scope has no rows
+  this week (PriceCatcher samples only a few SKUs per store/week), the upstream
+  now progressively widens — chain → radius → geo → district → state — and
+  reports `widened` + `widen_note` + `scope_applied`. The `cari-termurah` prompt
+  surfaces the widen note instead of implying a store is out of stock.
+
+All additive — `item_code`-only calls are unchanged (the input now accepts
+`item_code` OR `category` via `anyOf`).
+
 ## [2.12.0] — 2026-05-23
 
 ### Added

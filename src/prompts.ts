@@ -268,7 +268,8 @@ export const PROMPTS: PromptDef[] = [
 				`Item (data): ⟦ARG⟧${barang}⟦/ARG⟧\n` +
 				(negeri ? `Scope (data): ⟦ARG⟧${negeri}⟦/ARG⟧.\n` : '') +
 				(daerah ? `District (data): ⟦ARG⟧${daerah}⟦/ARG⟧.\n` : '') +
-				`Resolve the item from the in-context catalogue (manamurah://catalogue/items); call \`search_items\` only if it isn't there. Then make ONE \`find_cheapest\` call${negeri ? ' scoped to that state' : ''}${daerah ? ' filtered to that district' : ''} for the lowest-priced premises. Tool budget <= ~2 calls; read item/state/chain lists from the catalogue resources, do NOT tool-call to enumerate them.\n` +
+				`Resolve the item from the in-context catalogue (manamurah://catalogue/items); call \`search_items\` only if it isn't there. Then make ONE \`find_cheapest\` call${negeri ? ' scoped to that state' : ''}${daerah ? ' filtered to that district' : ''} for the lowest-priced premises. If the user named a broad staple generically (e.g. "beras"/rice, "ayam"/chicken) rather than one specific product, pass \`category\` (the item_category slug) instead of item_code so every SKU is considered and each store's single cheapest is returned. Tool budget <= ~2 calls; read item/state/chain lists from the catalogue resources, do NOT tool-call to enumerate them.\n` +
+				`If the response has widened=true, the requested scope had no rows this week and the search was broadened automatically — state the widen_note field plainly (e.g. "tiada dalam daerah ini minggu ini; diperluas ke seluruh negeri") rather than implying those stores have no stock.\n` +
 				(daerah && !negeri
 					? `Note: a district given without a state can be ambiguous across states — the same district name may exist in more than one state. If so, ask the user which negeri, or report nationally and state the ambiguity; never silently pick one state.\n`
 					: '') +
