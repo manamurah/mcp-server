@@ -230,7 +230,13 @@ const TOOLS: MCPTool[] = [
 					description: 'Filter by chain category.',
 				},
 			},
-			anyOf: [{ required: ['item_code'] }, { required: ['category'] }],
+			// NOTE: the "item_code OR category" constraint is enforced in the
+			// tool-call handler, NOT as a top-level `anyOf` here. The Anthropic
+			// Messages API rejects top-level anyOf/oneOf/allOf in a tool
+			// input_schema ("does not support oneOf, allOf, or anyOf at the top
+			// level"), which 400s the entire request and takes down any client
+			// that sends this tool (it poisoned every jin cron session). Keep
+			// both fields optional in the schema; validate in code.
 			additionalProperties: false,
 		},
 	},
@@ -875,6 +881,20 @@ async function handleToolCall(
 			jsonrpc: '2.0',
 			id: request.id,
 			error: { code: -32602, message: `Unknown tool: ${name}` },
+		};
+	}
+
+	// find_cheapest anchors on EITHER item_code OR category. This used to be a
+	// top-level `anyOf` in the input_schema, but that shape 400s the Anthropic
+	// Messages API, so the constraint is enforced here instead.
+	if (name === 'find_cheapest' && args.item_code == null && args.category == null) {
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			error: {
+				code: -32602,
+				message: "find_cheapest requires either 'item_code' (a specific SKU from search_items) or 'category' (an item_category slug like 'BERAS').",
+			},
 		};
 	}
 
