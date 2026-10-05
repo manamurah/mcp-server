@@ -14,6 +14,24 @@ export const CHANGELOG_MARKDOWN = `# Changelog
 All notable changes to \`manamurah-mcp-server\` are documented here.
 The project follows [semver](https://semver.org).
 
+## [2.14.0] — 2026-10-05
+
+### Added
+
+- **FAMA tools: grade and coverage fields documented.** manamurah.com added
+  these output fields on 2026-10-03 and this shim already passes them
+  through; the tool descriptions now say what they mean, so a client reads
+  egg prices like for like and can tell a change of sample from a price move.
+  - \`fama_price_history\`: \`gred\` (top level and on every point) and
+    \`series_by_grade\`, one like-for-like series per grade for graded items;
+    \`warnings\` names the days whose grade sample differed.
+  - \`fama_margin\`: \`gred\` and \`grades_matched\` on every row (\`false\` → the
+    day's spreads are null).
+  - \`fama_top_movers\`: grades compared like for like (\`gred\`), \`item_slug\`,
+    and \`states_current\` / \`states_comparison\` at national grain.
+
+No input or behaviour change: responses are what clients already receive.
+
 ## [2.13.0] — 2026-05-26
 
 ### Added

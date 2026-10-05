@@ -75,7 +75,7 @@ import type { CompletionRef, CompletionContext } from './mcp-types.js';
 
 const SERVER_NAME = 'manamurah';                  // MCP serverInfo.name
 const SERVER_PACKAGE_NAME = 'manamurah-mcp-server'; // human-facing
-const SERVER_VERSION = '2.13.0';
+const SERVER_VERSION = '2.14.0';
 const PROTOCOL_VERSION = '2025-06-18';                         // server's preferred/latest
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2024-11-05'] as const;
 
@@ -524,7 +524,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'fama_price_history',
 		description:
-			"Daily FAMA price time series for one item at a chosen price level (RUNCIT retail / BORONG wholesale / LADANG farm-gate) and geographic grain. FAMA is a separate catalogue from PriceCatcher — item_id here is FAMA's own 1..46 (not KPDN item_code). Common items: 13=AYAM PROSES STANDARD, 22=AYAM HIDUP, 46=TELUR AYAM, 31=TIMUN HIJAU, 10=KACANG PANJANG HIJAU, 44=BAYAM. Returns up to 90 days oldest-first; missing days (FAMA's publishing lag often hides the last 1–3 days) are listed in missing_dates rather than zero-filled. Do not use for KPDN items (use price_history) or for value-chain spread (use fama_margin).",
+			"Daily FAMA price time series for one item at a chosen price level (RUNCIT retail / BORONG wholesale / LADANG farm-gate) and geographic grain. FAMA is a separate catalogue from PriceCatcher — item_id here is FAMA's own 1..46 (not KPDN item_code). Common items: 13=AYAM PROSES STANDARD, 22=AYAM HIDUP, 46=TELUR AYAM, 31=TIMUN HIJAU, 10=KACANG PANJANG HIJAU, 44=BAYAM. Returns up to 90 days oldest-first; missing days (FAMA's publishing lag often hides the last 1–3 days) are listed in missing_dates rather than zero-filled. Graded items (46=TELUR AYAM, grades A/B/C) report one row per grade per day, and not every grade every day: each series point is the mean of the grades reported that day and names them in gred ('A/B/C', or 'B' alone), and series_by_grade holds one like-for-like series per grade. Use series_by_grade, not series, for a change over time; warnings names the days whose grade sample differed. Ungraded items carry gred 'F.A.Q' and series_by_grade null. Do not use for KPDN items (use price_history) or for value-chain spread (use fama_margin).",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -572,7 +572,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'fama_margin',
 		description:
-			"Pivot FAMA's three price levels for one item into per-day rows with all three prices side-by-side and the inter-leg markup percentages already computed (ladang_to_borong_pct, borong_to_runcit_pct, ladang_to_runcit_pct). The unique value FAMA enables over weekly KPDN — answering 'where in the value chain did the price move?'. Spread fields are null on days a leg is missing; the coverage block (ladang_days/borong_days/runcit_days/full_chain_days) tells you how reliable the analysis is — a near-zero full_chain_days means the item lacks farm-gate coverage. grain='daerah' is intentionally unsupported because LADANG/BORONG coverage at daerah grain is too sparse. Use fama_price_history if you only need one level.",
+			"Pivot FAMA's three price levels for one item into per-day rows with all three prices side-by-side and the inter-leg markup percentages already computed (ladang_to_borong_pct, borong_to_runcit_pct, ladang_to_runcit_pct). The unique value FAMA enables over weekly KPDN — answering 'where in the value chain did the price move?'. Spread fields are null on days a leg is missing; the coverage block (ladang_days/borong_days/runcit_days/full_chain_days) tells you how reliable the analysis is — a near-zero full_chain_days means the item lacks farm-gate coverage. Graded items (eggs): each day's three prices are means over the grades every reported level shares, named in gred, so a spread is a margin and not a grade gap; grades_matched=false means the levels shared no grade that day, and its spreads are null. grain='daerah' is intentionally unsupported because LADANG/BORONG coverage at daerah grain is too sparse. Use fama_price_history if you only need one level.",
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -605,7 +605,7 @@ const TOOLS: MCPTool[] = [
 	{
 		name: 'fama_top_movers',
 		description:
-			"Daily-cadence movers per FAMA price level — daily counterpart to top_movers, separable by level so callers can ask 'what jumped at the farm-gate' (level='LADANG') distinctly from 'what jumped at retail' (level='RUNCIT'). The comparison is anchored on the latest available date in the index (often 2-4 days behind today due to FAMA's publishing lag), not on today; days_actual echoes the realised gap. Items lacking either anchor or comparison observation are excluded — no zero-fill. LADANG coverage is the patchiest — expect shorter lists at level='LADANG' even with min_pct lowered. grain='daerah' is unsupported (sparse coverage).",
+			"Daily-cadence movers per FAMA price level — daily counterpart to top_movers, separable by level so callers can ask 'what jumped at the farm-gate' (level='LADANG') distinctly from 'what jumped at retail' (level='RUNCIT'). The comparison is anchored on the latest available date in the index (often 2-4 days behind today due to FAMA's publishing lag), not on today; days_actual echoes the realised gap. Items lacking either anchor or comparison observation are excluded — no zero-fill. Graded items (eggs) are compared like for like: both prices are means of the grades reported on both dates, named in gred. At grain='national' each row carries states_current and states_comparison, the number of states FAMA published a price for on each date (0 when it publishes only the national figure for that item). FAMA's national figure averages whichever markets reported, so a move resting on fewer than 5 states on either date, or on a changed count, can be a change of sample rather than of price; manamurah.com does not quote those. A row's page is https://manamurah.com/fama/<item_slug>-<item_id>. LADANG coverage is the patchiest — expect shorter lists at level='LADANG' even with min_pct lowered. grain='daerah' is unsupported (sparse coverage).",
 		inputSchema: {
 			type: 'object',
 			properties: {
